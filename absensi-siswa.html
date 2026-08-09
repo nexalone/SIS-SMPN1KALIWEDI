@@ -131,6 +131,24 @@
     text-align:center;color:#CBD5E8;font-size:13px;margin-top:12px;font-weight:500;
   }
 
+  .cam-toggle{
+    position:absolute;
+    top:14px;left:50%;
+    transform:translateX(-50%);
+    z-index:25;
+    background:rgba(15,38,71,0.75);
+    border:1px solid rgba(255,255,255,0.25);
+    color:#fff;
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    padding:7px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    backdrop-filter:blur(4px);
+  }
+  .cam-toggle:active{background:rgba(15,38,71,0.95);}
+
   /* ---------- Floating overlay di atas kamera ---------- */
   .float-layer{
     position:absolute;inset:0;
@@ -143,14 +161,8 @@
     top:50%;left:50%;
     transform:translate(-50%,-50%) scale(0.7);
     opacity:0;
-    background:rgba(15,38,71,0.92);
-    backdrop-filter:blur(6px);
-    border:2px solid rgba(255,255,255,0.25);
-    border-radius:18px;
-    padding:20px 30px;
     text-align:center;
     min-width:220px;
-    box-shadow:0 12px 40px rgba(0,0,0,0.45);
   }
   .float-card.show{
     animation:floatIn 0.45s cubic-bezier(.34,1.56,.64,1) forwards, floatBob 1.8s ease-in-out 0.45s infinite, floatOut 0.4s ease-in 2.1s forwards;
@@ -168,16 +180,20 @@
     100%{opacity:0;transform:translate(-50%,-62%) scale(0.9);}
   }
   .float-card .fc-name{
-    font-family:'Outfit',sans-serif;font-weight:800;font-size:22px;color:#fff;margin:0;
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:26px;margin:0;
+    color:#ffffff;
+    text-shadow:0 0 10px rgba(0,0,0,0.85), 0 0 22px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.9);
   }
   .float-card .fc-kelas{
-    font-size:13px;color:#B9C6DE;margin:4px 0 10px;font-weight:600;
+    font-size:14px;margin:4px 0 8px;font-weight:700;
+    color:#FFD54A;
+    text-shadow:0 0 8px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.9);
   }
   .float-card .fc-status{
-    display:inline-block;padding:5px 16px;border-radius:999px;
-    font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.4px;color:#fff;
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:14px;letter-spacing:0.6px;
+    text-shadow:0 0 8px rgba(0,0,0,0.9), 0 2px 4px rgba(0,0,0,0.9);
   }
-  .float-card.fc-sudah{border-color:rgba(198,112,27,0.5);}
+  .float-card.fc-sudah .fc-status{color:var(--oranye);}
 
   .star{
     position:absolute;top:50%;left:50%;
@@ -270,6 +286,7 @@
       <div class="bracket b-br"></div>
       <div class="scan-line"></div>
       <div class="float-layer" id="floatLayer"></div>
+      <button class="cam-toggle" id="camToggleBtn" title="Ganti kamera">🔄 Kamera Depan</button>
     </div>
     <p class="scan-hint" id="scanHint">Arahkan kartu / kode QR siswa ke kamera</p>
   </section>
@@ -345,6 +362,7 @@ async function loadMasterData(){
     (data.libur || []).forEach(tgl => liburSet.add(tgl));
     document.getElementById('scanHint').textContent =
       `Arahkan kartu / kode QR siswa ke kamera · ${Object.keys(siswaMap).length} siswa dimuat`;
+    loadRiwayatHariIni(); // ambil siswa yang sudah absen hari ini (misal kiosk baru dibuka/refresh)
   }catch(err){
     document.getElementById('scanHint').textContent =
       "Gagal memuat data siswa. Periksa koneksi / data-kiosk.json di GitHub.";
@@ -458,13 +476,13 @@ function showFloatCard({nama, kelas, status, sudahAbsen}){
 
   const card = document.createElement('div');
   card.className = 'float-card' + (sudahAbsen ? ' fc-sudah' : '');
-  const pillColor = sudahAbsen ? 'var(--oranye)' : (status === 'TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)');
+  const statusColor = sudahAbsen ? 'var(--oranye)' : (status === 'TERLAMBAT' ? 'var(--oranye)' : '#4ADE80');
   const label = sudahAbsen ? 'SUDAH ABSEN' : status;
 
   card.innerHTML = `
     <p class="fc-name">${nama}</p>
     <p class="fc-kelas">Kelas ${kelas}</p>
-    <span class="fc-status" style="background:${pillColor}">${label}</span>
+    <span class="fc-status" style="color:${statusColor}">${label}</span>
   `;
   layer.appendChild(card);
   requestAnimationFrame(() => card.classList.add('show'));
@@ -493,20 +511,50 @@ function flashHint(msg){
   }, 2500);
 }
 
+function renderLog(){
+  const logEl = document.getElementById('log');
+  if(logEntries.length === 0){
+    logEl.innerHTML = `<div class="log-empty">Belum ada siswa yang absen.</div>`;
+  }else{
+    logEl.innerHTML = logEntries.map(e => `
+      <div class="log-row">
+        <span class="lname">${e.nama} <span class="lmeta">· ${e.kelas}</span></span>
+        <span>
+          <span class="badge" style="background:${e.status==='TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)'}">${e.status}</span>
+          <span class="lmeta" style="margin-left:8px">${e.time.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
+        </span>
+      </div>
+    `).join('');
+  }
+  document.getElementById('historyCount').textContent = `${logEntries.length} siswa`;
+}
+
 function addLogEntry({nama, kelas, status}){
   logEntries.unshift({nama, kelas, status, time: new Date()});
   logEntries = logEntries.slice(0, 100);
-  const logEl = document.getElementById('log');
-  logEl.innerHTML = logEntries.map(e => `
-    <div class="log-row">
-      <span class="lname">${e.nama} <span class="lmeta">· ${e.kelas}</span></span>
-      <span>
-        <span class="badge" style="background:${e.status==='TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)'}">${e.status}</span>
-        <span class="lmeta" style="margin-left:8px">${e.time.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
-      </span>
-    </div>
-  `).join('');
-  document.getElementById('historyCount').textContent = `${logEntries.length} siswa`;
+  renderLog();
+}
+
+/* ---------- Muat siswa yang sudah absen hari ini (kalau kiosk baru dibuka/refresh) ---------- */
+async function loadRiwayatHariIni(){
+  try{
+    const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=riwayat`);
+    const data = await res.json();
+    const rows = (data.riwayat || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    logEntries = rows.map(r => {
+      const s = siswaMap[r.nisn];
+      tandaiSudahAbsen(r.nisn); // sinkronkan cache lokal juga
+      return {
+        nama: s ? s.nama : r.nisn,
+        kelas: s ? s.kelas : '-',
+        status: r.status,
+        time: new Date(r.timestamp)
+      };
+    });
+    renderLog();
+  }catch(err){
+    console.error("Gagal memuat riwayat hari ini:", err);
+  }
 }
 
 /* ---------- Handler scan QR ---------- */
@@ -552,17 +600,45 @@ async function onScanSuccess(decodedText){
 }
 
 /* ---------- Init kamera ---------- */
-const html5QrCode = new Html5Qrcode("reader");
-html5QrCode.start(
-  { facingMode: "environment" },
-  { fps: 10, qrbox: { width: 240, height: 240 } },
-  onScanSuccess,
-  () => {} // scan gagal per-frame, diamkan
-).catch(err => {
-  document.getElementById('scanHint').textContent =
-    "Tidak bisa mengakses kamera. Izinkan akses kamera di browser.";
-  console.error(err);
-});
+const html5QrCode = new Html5Qrcode("reader", { verbose: false });
+let currentFacing = "user"; // default kamera DEPAN
+
+const scanConfig = {
+  fps: 15,                                 // lebih tinggi dari sebelumnya (10) = baca lebih responsif
+  qrbox: { width: 230, height: 230 },
+  disableFlip: false,
+  experimentalFeatures: { useBarCodeDetectorIfSupported: true } // pakai decoder native HP kalau tersedia, jauh lebih cepat
+};
+
+async function startScanner(facing){
+  try{
+    await html5QrCode.start(
+      { facingMode: facing },
+      scanConfig,
+      onScanSuccess,
+      () => {} // scan gagal per-frame, diamkan
+    );
+  }catch(err){
+    document.getElementById('scanHint').textContent =
+      "Tidak bisa mengakses kamera. Izinkan akses kamera di browser.";
+    console.error(err);
+  }
+}
+
+async function toggleCamera(){
+  const btn = document.getElementById('camToggleBtn');
+  btn.disabled = true;
+  currentFacing = currentFacing === "user" ? "environment" : "user";
+  try{
+    await html5QrCode.stop();
+  }catch(err){ /* kamera mungkin belum jalan, abaikan */ }
+  await startScanner(currentFacing);
+  btn.textContent = currentFacing === "user" ? "🔄 Kamera Depan" : "🔄 Kamera Belakang";
+  btn.disabled = false;
+}
+document.getElementById('camToggleBtn').addEventListener('click', toggleCamera);
+
+startScanner(currentFacing);
 </script>
 </body>
 </html>
