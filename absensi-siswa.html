@@ -292,8 +292,10 @@
    KONFIGURASI — sesuaikan sebelum deploy
    ========================================================= */
 const CONFIG = {
-  // URL Web App Apps Script (deploy sebagai "Anyone" access)
+  // URL Web App Apps Script — hanya dipakai untuk KIRIM absen (POST), bukan baca data lagi
   APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwVm8ZDBvbxBeA3DM-fiuPORMaPwybAgwDEgZz8PjsOtLHB1uAhOHukXs8wwAJYDpCL/exec",
+  // Data siswa + libur dibaca dari GitHub publik (cepat, tanpa cold-start)
+  DATA_JSON_URL: "https://raw.githubusercontent.com/nexalone/SIS-SMPN1KALIWEDI/main/data-kiosk.json",
   // Jam batas terlambat (format 24 jam, menit)
   BATAS_TERLAMBAT: "07:00",
   // Jeda anti double-scan untuk NISN yang sama (ms)
@@ -304,6 +306,24 @@ let siswaMap = {};     // NISN -> {nama, kelas, lp}
 let liburSet = new Set(); // tanggal libur "YYYY-MM-DD"
 let lastScan = { nisn: null, time: 0 };
 let logEntries = [];
+
+/* ---------- Cache "sudah absen hari ini" di kiosk ini (localStorage) ---------- */
+/* Supaya siswa yang scan ulang langsung dapat jawaban TANPA nunggu server. */
+function todayKey(){
+  const d = new Date();
+  return `absenHariIni_${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+}
+function getSudahAbsenSet(){
+  try{
+    const raw = localStorage.getItem(todayKey());
+    return new Set(raw ? JSON.parse(raw) : []);
+  }catch(err){ return new Set(); }
+}
+function tandaiSudahAbsen(nisn){
+  const set = getSudahAbsenSet();
+  set.add(nisn);
+  try{ localStorage.setItem(todayKey(), JSON.stringify([...set])); }catch(err){}
+}
 
 /* ---------- Jam realtime ---------- */
 function tickClock(){
@@ -316,10 +336,10 @@ function tickClock(){
 setInterval(tickClock, 1000);
 tickClock();
 
-/* ---------- Ambil data master siswa & libur ---------- */
+/* ---------- Ambil data master siswa & libur (dari GitHub publik) ---------- */
 async function loadMasterData(){
   try{
-    const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=siswa`);
+    const res = await fetch(CONFIG.DATA_JSON_URL, { cache: "no-store" });
     const data = await res.json();
     (data.siswa || []).forEach(s => { siswaMap[String(s.nisn)] = s; });
     (data.libur || []).forEach(tgl => liburSet.add(tgl));
@@ -327,7 +347,7 @@ async function loadMasterData(){
       `Arahkan kartu / kode QR siswa ke kamera · ${Object.keys(siswaMap).length} siswa dimuat`;
   }catch(err){
     document.getElementById('scanHint').textContent =
-      "Gagal memuat data siswa. Periksa koneksi / URL Apps Script.";
+      "Gagal memuat data siswa. Periksa koneksi / data-kiosk.json di GitHub.";
     console.error(err);
   }
 }
@@ -504,9 +524,17 @@ async function onScanSuccess(decodedText){
     return;
   }
 
+  // cek cache lokal dulu — kalau kiosk ini sudah pernah catat absen untuk NISN ini hari ini,
+  // langsung tampilkan "SUDAH ABSEN" tanpa nunggu jaringan sama sekali
+  if(getSudahAbsenSet().has(nisn)){
+    showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
+    return;
+  }
+
   try{
     const result = await kirimAbsen(nisn);
     if(result.status === 'DUPLIKAT'){
+      tandaiSudahAbsen(nisn);
       showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
       return;
     }
@@ -516,6 +544,7 @@ async function onScanSuccess(decodedText){
     }
     showFloatCard({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     addLogEntry({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
+    tandaiSudahAbsen(nisn);
   }catch(err){
     flashHint("Gagal menyimpan absen — coba lagi");
     console.error(err);
