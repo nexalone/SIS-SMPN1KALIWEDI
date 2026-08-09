@@ -18,6 +18,8 @@
     --line:#E4E0D6;
     --hijau:#1E7B4D;
     --oranye:#C6701B;
+    --biru:#2563A6;
+    --ungu:#6D4FA0;
     --abu:#6B7280;
   }
   *{box-sizing:border-box;}
@@ -226,22 +228,31 @@
   .manual-row{
     width:100%;
     display:flex;align-items:center;justify-content:space-between;
-    background:none;border:none;border-bottom:1px solid var(--line);
-    padding:13px 8px;
+    gap:10px;
+    border-bottom:1px solid var(--line);
+    padding:12px 8px;
     font-family:'Inter',sans-serif;
     font-size:14px;
     color:var(--ink);
-    text-align:left;
-    cursor:pointer;
   }
-  .manual-row:active{background:var(--paper);}
-  .manual-row.done{color:var(--abu);cursor:default;}
-  .mr-name{font-weight:600;}
+  .manual-row.done{color:var(--abu);}
+  .mr-name{font-weight:600;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .mr-status{
     font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;
-    color:var(--hijau);
+    flex-shrink:0;
   }
-  .manual-row.done .mr-status{color:var(--abu);}
+  .mr-actions{display:flex;gap:6px;flex-shrink:0;}
+  .mr-btn{
+    font-family:'Outfit',sans-serif;font-weight:700;font-size:11.5px;
+    border:none;border-radius:999px;
+    padding:7px 12px;
+    color:#fff;
+    cursor:pointer;
+  }
+  .mr-btn:disabled{opacity:0.5;}
+  .mr-hadir{background:var(--hijau);}
+  .mr-sakit{background:var(--biru);}
+  .mr-izin{background:var(--ungu);}
 
   /* ---------- Floating overlay di atas kamera ---------- */
   .float-layer{
@@ -440,6 +451,7 @@ let siswaMap = {};     // NISN -> {nama, kelas, lp}
 let liburSet = new Set(); // tanggal libur "YYYY-MM-DD"
 let lastScan = { nisn: null, time: 0 };
 let logEntries = [];
+let statusHariIni = {}; // NISN -> status ("HADIR"/"TERLAMBAT"/"SAKIT"/"IZIN") untuk hari ini
 
 /* ---------- Cache "sudah absen hari ini" di kiosk ini (localStorage) ---------- */
 /* Supaya siswa yang scan ulang langsung dapat jawaban TANPA nunggu server. */
@@ -490,12 +502,14 @@ async function loadMasterData(){
 loadMasterData();
 
 /* ---------- Kirim absen ke server ---------- */
-async function kirimAbsen(nisn){
+async function kirimAbsen(nisn, statusManual){
+  const body = { action: "absen", nisn };
+  if(statusManual) body.status = statusManual; // HADIR/SAKIT/IZIN dari absen manual
   const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
     method: "POST",
     // text/plain menghindari CORS preflight pada Apps Script
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ action: "absen", nisn })
+    body: JSON.stringify(body)
   });
   return res.json();
 }
@@ -587,15 +601,28 @@ function spawnStars(){
 }
 
 /* ---------- Overlay nama+kelas melayang di atas kamera ---------- */
-function showFloatCard({nama, kelas, status, sudahAbsen}){
+function warnaStatus(status){
+  if(status === 'TERLAMBAT') return 'var(--oranye)';
+  if(status === 'SAKIT') return 'var(--biru)';
+  if(status === 'IZIN') return 'var(--ungu)';
+  return '#4ADE80'; // HADIR — teks cerah di atas kamera gelap
+}
+function warnaBadge(status){
+  if(status === 'TERLAMBAT') return 'var(--oranye)';
+  if(status === 'SAKIT') return 'var(--biru)';
+  if(status === 'IZIN') return 'var(--ungu)';
+  return 'var(--hijau)'; // HADIR — background badge di panel terang
+}
+
+function showFloatCard({nama, kelas, status, sudahAbsen, statusSudah}){
   const layer = document.getElementById('floatLayer');
   const old = layer.querySelector('.float-card');
   if(old) old.remove();
 
   const card = document.createElement('div');
   card.className = 'float-card' + (sudahAbsen ? ' fc-sudah' : '');
-  const statusColor = sudahAbsen ? 'var(--oranye)' : (status === 'TERLAMBAT' ? 'var(--oranye)' : '#4ADE80');
-  const label = sudahAbsen ? 'SUDAH ABSEN' : status;
+  const statusColor = sudahAbsen ? warnaStatus(statusSudah) : warnaStatus(status);
+  const label = sudahAbsen ? `SUDAH ABSEN${statusSudah ? ' · ' + statusSudah : ''}` : status;
 
   card.innerHTML = `
     <p class="fc-name">${nama}</p>
@@ -638,7 +665,7 @@ function renderLog(){
       <div class="log-row">
         <span class="lname">${e.nama} <span class="lmeta">· ${e.kelas}</span></span>
         <span>
-          <span class="badge" style="background:${e.status==='TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)'}">${e.status}</span>
+          <span class="badge" style="background:${warnaBadge(e.status)}">${e.status}</span>
           <span class="lmeta" style="margin-left:8px">${e.time.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
         </span>
       </div>
@@ -662,6 +689,7 @@ async function loadRiwayatHariIni(){
     logEntries = rows.map(r => {
       const s = siswaMap[r.nisn];
       tandaiSudahAbsen(r.nisn); // sinkronkan cache lokal juga
+      statusHariIni[r.nisn] = r.status;
       return {
         nama: s ? s.nama : r.nisn,
         kelas: s ? s.kelas : '-',
@@ -675,9 +703,8 @@ async function loadRiwayatHariIni(){
   }
 }
 
-/* ---------- Handler scan QR ---------- */
 /* ---------- Proses absen (dipakai oleh scan QR maupun absen manual) ---------- */
-async function prosesAbsen(nisn){
+async function prosesAbsen(nisn, statusManual){
   const siswa = siswaMap[nisn];
   if(!siswa){
     flashHint("NISN tidak terdaftar");
@@ -687,15 +714,15 @@ async function prosesAbsen(nisn){
   // cek cache lokal dulu — kalau kiosk ini sudah pernah catat absen untuk NISN ini hari ini,
   // langsung tampilkan "SUDAH ABSEN" tanpa nunggu jaringan sama sekali
   if(getSudahAbsenSet().has(nisn)){
-    showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
+    showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true, statusSudah:statusHariIni[nisn]});
     return;
   }
 
   try{
-    const result = await kirimAbsen(nisn);
+    const result = await kirimAbsen(nisn, statusManual);
     if(result.status === 'DUPLIKAT'){
       tandaiSudahAbsen(nisn);
-      showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
+      showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true, statusSudah:statusHariIni[nisn]});
       return;
     }
     if(result.status === 'LIBUR'){
@@ -705,6 +732,7 @@ async function prosesAbsen(nisn){
     showFloatCard({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     addLogEntry({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     tandaiSudahAbsen(nisn);
+    statusHariIni[nisn] = result.status;
   }catch(err){
     flashHint("Gagal menyimpan absen — coba lagi");
     console.error(err);
@@ -758,11 +786,24 @@ function renderManualList(){
 
   listEl.innerHTML = daftar.map(([nisn, s]) => {
     const sudah = sudahSet.has(nisn);
+    if(sudah){
+      const st = statusHariIni[nisn];
+      return `
+        <div class="manual-row done" data-nisn="${nisn}">
+          <span class="mr-name">${s.nama}</span>
+          <span class="mr-status" style="color:${warnaBadge(st)}">${st ? st : 'SUDAH ABSEN'}</span>
+        </div>
+      `;
+    }
     return `
-      <button class="manual-row ${sudah ? 'done' : ''}" data-nisn="${nisn}" ${sudah ? 'disabled' : ''}>
+      <div class="manual-row" data-nisn="${nisn}">
         <span class="mr-name">${s.nama}</span>
-        <span class="mr-status">${sudah ? 'SUDAH ABSEN' : 'Absenkan →'}</span>
-      </button>
+        <div class="mr-actions">
+          <button class="mr-btn mr-hadir" data-nisn="${nisn}" data-status="HADIR">Hadir</button>
+          <button class="mr-btn mr-sakit" data-nisn="${nisn}" data-status="SAKIT">Sakit</button>
+          <button class="mr-btn mr-izin" data-nisn="${nisn}" data-status="IZIN">Izin</button>
+        </div>
+      </div>
     `;
   }).join('');
 }
@@ -784,12 +825,17 @@ document.getElementById('kelasSelect').addEventListener('change', renderManualLi
 document.getElementById('namaSearch').addEventListener('input', renderManualList);
 
 document.getElementById('manualList').addEventListener('click', async (e) => {
-  const row = e.target.closest('.manual-row');
-  if(!row || row.disabled) return;
-  const nisn = row.dataset.nisn;
-  row.disabled = true;
-  await prosesAbsen(nisn);
-  renderManualList(); // refresh status jadi "SUDAH ABSEN"
+  const btn = e.target.closest('.mr-btn');
+  if(!btn || btn.disabled) return;
+  const nisn = btn.dataset.nisn;
+  const status = btn.dataset.status;
+
+  // nonaktifkan semua tombol di baris itu selagi diproses
+  const row = btn.closest('.manual-row');
+  row.querySelectorAll('.mr-btn').forEach(b => b.disabled = true);
+
+  await prosesAbsen(nisn, status);
+  renderManualList(); // refresh: baris berubah jadi status "SUDAH ABSEN"
 });
 
 /* ---------- Init kamera ---------- */
