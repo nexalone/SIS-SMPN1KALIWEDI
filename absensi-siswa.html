@@ -191,79 +191,49 @@
     100%{transform:translate(-50%,-50%) translate(var(--sx),var(--sy)) scale(1.1) rotate(var(--srot));opacity:0;}
   }
 
-  /* ---------- Result panel ---------- */
-  .result-card{
+  /* ---------- Panel riwayat absen ---------- */
+  .history-card{
     flex:0.9;
     background:var(--panel);
     border:1px solid var(--line);
     border-radius:18px;
-    padding:24px;
+    padding:20px;
     min-height:320px;
+    max-height:560px;
     display:flex;
     flex-direction:column;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    gap:10px;
   }
-  .result-card.idle .avatar{background:var(--line);color:var(--abu);}
-  .avatar{
-    width:76px;height:76px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    font-family:'Outfit',sans-serif;font-weight:700;font-size:26px;
-    margin-bottom:6px;
-    color:#fff;
+  .history-head{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:14px;
+    padding:0 2px;
   }
-  .idle-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:16px;color:var(--ink);}
-  .idle-sub{font-size:13px;color:var(--abu);max-width:220px;}
-
-  .result-name{font-family:'Outfit',sans-serif;font-weight:700;font-size:20px;margin:0;}
-  .result-meta{font-size:13px;color:var(--abu);margin:0;}
-  .status-pill{
-    margin-top:8px;
-    padding:6px 16px;
-    border-radius:999px;
-    font-family:'Outfit',sans-serif;
-    font-weight:700;
-    font-size:13px;
-    letter-spacing:0.3px;
-    color:#fff;
+  .history-head h2{
+    font-family:'Outfit',sans-serif;font-weight:700;font-size:14px;
+    color:var(--ink);text-transform:uppercase;letter-spacing:0.5px;margin:0;
   }
-  .status-hadir{background:var(--hijau);}
-  .status-terlambat{background:var(--oranye);}
-  .status-error{background:var(--merah);}
-  .result-time{font-size:12px;color:var(--abu);margin-top:2px;}
-
-  /* ---------- Log strip ---------- */
-  .log-wrap{
-    max-width:1100px;
-    margin:0 auto 24px;
-    width:100%;
-    padding:0 20px;
-  }
-  .log-title{
-    font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;
-    color:var(--abu);text-transform:uppercase;letter-spacing:0.6px;
-    margin:0 0 10px 4px;
+  .history-count{
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:13px;
+    color:var(--hijau);
   }
   #log{
-    background:var(--panel);
+    flex:1;
+    overflow-y:auto;
     border:1px solid var(--line);
     border-radius:14px;
-    max-height:220px;
-    overflow-y:auto;
   }
   .log-row{
     display:flex;align-items:center;justify-content:space-between;
-    padding:10px 16px;
+    padding:12px 16px;
     border-bottom:1px solid var(--line);
     font-size:13px;
   }
   .log-row:last-child{border-bottom:none;}
   .log-row .lname{font-weight:600;}
   .log-row .lmeta{color:var(--abu);}
-  .log-empty{padding:20px;text-align:center;color:var(--abu);font-size:13px;}
-
+  .log-empty{padding:40px 20px;text-align:center;color:var(--abu);font-size:13px;}
   .badge{
     display:inline-block;padding:2px 10px;border-radius:999px;
     font-size:11px;font-weight:700;color:#fff;font-family:'Outfit',sans-serif;
@@ -304,19 +274,16 @@
     <p class="scan-hint" id="scanHint">Arahkan kartu / kode QR siswa ke kamera</p>
   </section>
 
-  <section class="result-card idle" id="resultCard">
-    <div class="avatar" id="avatar">?</div>
-    <div class="idle-title" id="idleTitle">Menunggu scan…</div>
-    <div class="idle-sub" id="idleSub">Hasil absensi siswa akan muncul di sini setelah QR terbaca.</div>
+  <section class="history-card">
+    <div class="history-head">
+      <h2>Riwayat absen hari ini</h2>
+      <span class="history-count" id="historyCount">0 siswa</span>
+    </div>
+    <div id="log">
+      <div class="log-empty">Belum ada siswa yang absen.</div>
+    </div>
   </section>
 </main>
-
-<div class="log-wrap">
-  <p class="log-title">Riwayat scan hari ini</p>
-  <div id="log">
-    <div class="log-empty">Belum ada aktivitas.</div>
-  </div>
-</div>
 
 <footer>Sistem Informasi Sekolah · SMP Negeri 1 Kaliwedi</footer>
 
@@ -491,34 +458,24 @@ function showFloatCard({nama, kelas, status, sudahAbsen}){
   }
 }
 
-function showResult({ok, nama, kelas, status, message}){
-  const card = document.getElementById('resultCard');
-  card.classList.remove('idle');
-
-  if(!ok){
-    card.innerHTML = `
-      <div class="avatar" style="background:var(--merah)">!</div>
-      <p class="result-name">${message || 'NISN tidak ditemukan'}</p>
-      <div class="status-pill status-error">GAGAL</div>
-    `;
-    return;
-  }
-
-  const statusClass = status === 'TERLAMBAT' ? 'status-terlambat' : 'status-hadir';
-  const avatarColor = status === 'TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)';
-
-  card.innerHTML = `
-    <div class="avatar" style="background:${avatarColor}">${initials(nama)}</div>
-    <p class="result-name">${nama}</p>
-    <p class="result-meta">Kelas ${kelas}</p>
-    <div class="status-pill ${statusClass}">${status}</div>
-    <p class="result-time">${new Date().toLocaleTimeString('id-ID')}</p>
-  `;
+/* ---------- Pesan sementara di bawah kamera untuk kasus gagal ---------- */
+let hintTimeout = null;
+function flashHint(msg){
+  const hint = document.getElementById('scanHint');
+  const original = hint.dataset.base || hint.textContent;
+  hint.dataset.base = original;
+  hint.textContent = msg;
+  hint.style.color = '#FFB4B4';
+  clearTimeout(hintTimeout);
+  hintTimeout = setTimeout(() => {
+    hint.textContent = original;
+    hint.style.color = '';
+  }, 2500);
 }
 
 function addLogEntry({nama, kelas, status}){
   logEntries.unshift({nama, kelas, status, time: new Date()});
-  logEntries = logEntries.slice(0, 30);
+  logEntries = logEntries.slice(0, 100);
   const logEl = document.getElementById('log');
   logEl.innerHTML = logEntries.map(e => `
     <div class="log-row">
@@ -529,6 +486,7 @@ function addLogEntry({nama, kelas, status}){
       </span>
     </div>
   `).join('');
+  document.getElementById('historyCount').textContent = `${logEntries.length} siswa`;
 }
 
 /* ---------- Handler scan QR ---------- */
@@ -542,26 +500,24 @@ async function onScanSuccess(decodedText){
 
   const siswa = siswaMap[nisn];
   if(!siswa){
-    showResult({ok:false, message:"NISN tidak terdaftar"});
+    flashHint("NISN tidak terdaftar");
     return;
   }
 
   try{
     const result = await kirimAbsen(nisn);
     if(result.status === 'DUPLIKAT'){
-      showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:'SUDAH ABSEN'});
       showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
       return;
     }
     if(result.status === 'LIBUR'){
-      showResult({ok:false, message:"Hari ini libur — absensi tidak dicatat"});
+      flashHint("Hari ini libur — absensi tidak dicatat");
       return;
     }
-    showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     showFloatCard({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     addLogEntry({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
   }catch(err){
-    showResult({ok:false, message:"Gagal menyimpan absen — coba lagi"});
+    flashHint("Gagal menyimpan absen — coba lagi");
     console.error(err);
   }
 }
