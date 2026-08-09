@@ -229,23 +229,25 @@
     width:100%;
     display:flex;align-items:center;justify-content:space-between;
     gap:10px;
-    border-bottom:1px solid var(--line);
-    padding:12px 8px;
+    border:none;border-bottom:1px solid var(--line);
+    background:none;
+    padding:14px 8px;
     font-family:'Inter',sans-serif;
     font-size:14px;
     color:var(--ink);
+    text-align:left;
+    cursor:pointer;
   }
-  .manual-row.done{color:var(--abu);}
+  .manual-row:active{background:var(--paper);}
+  .manual-row.done{color:var(--abu);cursor:default;}
   .mr-name{font-weight:600;flex-shrink:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .mr-status{
     font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;
     flex-shrink:0;
   }
-  .mr-actions{display:flex;gap:6px;flex-shrink:0;}
   .mr-btn{
-    font-family:'Outfit',sans-serif;font-weight:700;font-size:11.5px;
+    font-family:'Outfit',sans-serif;font-weight:700;
     border:none;border-radius:999px;
-    padding:7px 12px;
     color:#fff;
     cursor:pointer;
   }
@@ -253,6 +255,30 @@
   .mr-hadir{background:var(--hijau);}
   .mr-sakit{background:var(--biru);}
   .mr-izin{background:var(--ungu);}
+
+  /* ---------- Konfirmasi status (setelah nama dipilih) ---------- */
+  .manual-confirm{padding:18px 20px 24px;}
+  .confirm-back{
+    background:none;border:none;color:var(--abu);
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13px;
+    padding:0 0 16px;cursor:pointer;
+  }
+  .confirm-info{text-align:center;margin-bottom:22px;}
+  .confirm-name{
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:22px;
+    color:var(--ink);margin:0;
+  }
+  .confirm-kelas{font-size:13px;color:var(--abu);margin:4px 0 0;font-weight:600;}
+  .confirm-label{
+    text-align:center;font-size:12px;color:var(--abu);
+    text-transform:uppercase;letter-spacing:0.5px;font-weight:700;margin:0 0 12px;
+  }
+  .confirm-actions{display:flex;gap:10px;}
+  .confirm-actions .mr-btn{
+    flex:1;
+    font-size:15px;
+    padding:16px 8px;
+  }
 
   /* ---------- Floating overlay di atas kamera ---------- */
   .float-layer{
@@ -420,14 +446,31 @@
       <h2>Absen Manual</h2>
       <button class="modal-close" id="manualClose">✕</button>
     </div>
-    <div class="modal-filters">
-      <select id="kelasSelect">
-        <option value="">Pilih kelas…</option>
-      </select>
-      <input type="text" id="namaSearch" placeholder="Cari nama siswa…">
+
+    <div id="manualListView">
+      <div class="modal-filters">
+        <select id="kelasSelect">
+          <option value="">Pilih kelas…</option>
+        </select>
+        <input type="text" id="namaSearch" placeholder="Cari nama siswa…">
+      </div>
+      <div class="manual-list" id="manualList">
+        <div class="log-empty">Pilih kelas untuk menampilkan daftar siswa.</div>
+      </div>
     </div>
-    <div class="manual-list" id="manualList">
-      <div class="log-empty">Pilih kelas untuk menampilkan daftar siswa.</div>
+
+    <div id="manualConfirmView" class="manual-confirm" style="display:none;">
+      <button class="confirm-back" id="confirmBack">← Kembali ke daftar</button>
+      <div class="confirm-info">
+        <p class="confirm-name" id="confirmName"></p>
+        <p class="confirm-kelas" id="confirmKelas"></p>
+      </div>
+      <p class="confirm-label">Pilih status kehadiran:</p>
+      <div class="confirm-actions">
+        <button class="mr-btn mr-hadir" id="btnHadir" data-status="HADIR">Hadir</button>
+        <button class="mr-btn mr-sakit" id="btnSakit" data-status="SAKIT">Sakit</button>
+        <button class="mr-btn mr-izin" id="btnIzin" data-status="IZIN">Izin</button>
+      </div>
     </div>
   </div>
 </div>
@@ -789,31 +832,47 @@ function renderManualList(){
     if(sudah){
       const st = statusHariIni[nisn];
       return `
-        <div class="manual-row done" data-nisn="${nisn}">
+        <div class="manual-row done">
           <span class="mr-name">${s.nama}</span>
           <span class="mr-status" style="color:${warnaBadge(st)}">${st ? st : 'SUDAH ABSEN'}</span>
         </div>
       `;
     }
     return `
-      <div class="manual-row" data-nisn="${nisn}">
+      <button class="manual-row" data-nisn="${nisn}">
         <span class="mr-name">${s.nama}</span>
-        <div class="mr-actions">
-          <button class="mr-btn mr-hadir" data-nisn="${nisn}" data-status="HADIR">Hadir</button>
-          <button class="mr-btn mr-sakit" data-nisn="${nisn}" data-status="SAKIT">Sakit</button>
-          <button class="mr-btn mr-izin" data-nisn="${nisn}" data-status="IZIN">Izin</button>
-        </div>
-      </div>
+        <span class="mr-status" style="color:var(--abu)">Pilih →</span>
+      </button>
     `;
   }).join('');
 }
 
-function openManualModal(){
-  document.getElementById('manualModal').classList.add('open');
-  renderManualList();
+
+function showManualListView(){
+  document.getElementById('manualListView').style.display = '';
+  document.getElementById('manualConfirmView').style.display = 'none';
 }
+
 function closeManualModal(){
   document.getElementById('manualModal').classList.remove('open');
+}
+
+let selectedManualNisn = null;
+function showManualConfirmView(nisn){
+  const s = siswaMap[nisn];
+  if(!s) return;
+  selectedManualNisn = nisn;
+  document.getElementById('confirmName').textContent = s.nama;
+  document.getElementById('confirmKelas').textContent = `Kelas ${s.kelas}`;
+  document.querySelectorAll('#manualConfirmView .mr-btn').forEach(b => b.disabled = false);
+  document.getElementById('manualListView').style.display = 'none';
+  document.getElementById('manualConfirmView').style.display = '';
+}
+
+function openManualModal(){
+  document.getElementById('manualModal').classList.add('open');
+  showManualListView();
+  renderManualList();
 }
 
 document.getElementById('manualBtn').addEventListener('click', openManualModal);
@@ -823,19 +882,30 @@ document.getElementById('manualModal').addEventListener('click', (e) => {
 });
 document.getElementById('kelasSelect').addEventListener('change', renderManualList);
 document.getElementById('namaSearch').addEventListener('input', renderManualList);
+document.getElementById('confirmBack').addEventListener('click', () => {
+  showManualListView();
+  renderManualList();
+});
 
-document.getElementById('manualList').addEventListener('click', async (e) => {
+// klik nama di daftar -> tampilkan panel konfirmasi status
+document.getElementById('manualList').addEventListener('click', (e) => {
+  const row = e.target.closest('.manual-row');
+  if(!row || !row.dataset.nisn) return;
+  showManualConfirmView(row.dataset.nisn);
+});
+
+// klik salah satu tombol status di panel konfirmasi -> proses absen
+document.getElementById('manualConfirmView').addEventListener('click', async (e) => {
   const btn = e.target.closest('.mr-btn');
-  if(!btn || btn.disabled) return;
-  const nisn = btn.dataset.nisn;
+  if(!btn || btn.disabled || !selectedManualNisn) return;
   const status = btn.dataset.status;
 
-  // nonaktifkan semua tombol di baris itu selagi diproses
-  const row = btn.closest('.manual-row');
-  row.querySelectorAll('.mr-btn').forEach(b => b.disabled = true);
+  document.querySelectorAll('#manualConfirmView .mr-btn').forEach(b => b.disabled = true);
+  await prosesAbsen(selectedManualNisn, status);
 
-  await prosesAbsen(nisn, status);
-  renderManualList(); // refresh: baris berubah jadi status "SUDAH ABSEN"
+  selectedManualNisn = null;
+  showManualListView();
+  renderManualList(); // daftar ter-update: siswa tadi sekarang tampil "sudah absen"
 });
 
 /* ---------- Init kamera ---------- */
