@@ -131,6 +131,66 @@
     text-align:center;color:#CBD5E8;font-size:13px;margin-top:12px;font-weight:500;
   }
 
+  /* ---------- Floating overlay di atas kamera ---------- */
+  .float-layer{
+    position:absolute;inset:0;
+    z-index:30;
+    pointer-events:none;
+    overflow:visible;
+  }
+  .float-card{
+    position:absolute;
+    top:50%;left:50%;
+    transform:translate(-50%,-50%) scale(0.7);
+    opacity:0;
+    background:rgba(15,38,71,0.92);
+    backdrop-filter:blur(6px);
+    border:2px solid rgba(255,255,255,0.25);
+    border-radius:18px;
+    padding:20px 30px;
+    text-align:center;
+    min-width:220px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.45);
+  }
+  .float-card.show{
+    animation:floatIn 0.45s cubic-bezier(.34,1.56,.64,1) forwards, floatBob 1.8s ease-in-out 0.45s infinite, floatOut 0.4s ease-in 2.1s forwards;
+  }
+  @keyframes floatIn{
+    0%{transform:translate(-50%,-40%) scale(0.6);opacity:0;}
+    100%{transform:translate(-50%,-50%) scale(1);opacity:1;}
+  }
+  @keyframes floatBob{
+    0%,100%{transform:translate(-50%,-50%) scale(1) translateY(0);}
+    50%{transform:translate(-50%,-50%) scale(1) translateY(-6px);}
+  }
+  @keyframes floatOut{
+    0%{opacity:1;}
+    100%{opacity:0;transform:translate(-50%,-62%) scale(0.9);}
+  }
+  .float-card .fc-name{
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:22px;color:#fff;margin:0;
+  }
+  .float-card .fc-kelas{
+    font-size:13px;color:#B9C6DE;margin:4px 0 10px;font-weight:600;
+  }
+  .float-card .fc-status{
+    display:inline-block;padding:5px 16px;border-radius:999px;
+    font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;letter-spacing:0.4px;color:#fff;
+  }
+  .float-card.fc-sudah{border-color:rgba(198,112,27,0.5);}
+
+  .star{
+    position:absolute;top:50%;left:50%;
+    font-size:20px;
+    opacity:0;
+    pointer-events:none;
+    animation:starBurst 0.9s ease-out forwards;
+  }
+  @keyframes starBurst{
+    0%{transform:translate(-50%,-50%) translate(0,0) scale(0.3) rotate(0deg);opacity:1;}
+    100%{transform:translate(-50%,-50%) translate(var(--sx),var(--sy)) scale(1.1) rotate(var(--srot));opacity:0;}
+  }
+
   /* ---------- Result panel ---------- */
   .result-card{
     flex:0.9;
@@ -239,6 +299,7 @@
       <div class="bracket b-bl"></div>
       <div class="bracket b-br"></div>
       <div class="scan-line"></div>
+      <div class="float-layer" id="floatLayer"></div>
     </div>
     <p class="scan-hint" id="scanHint">Arahkan kartu / kode QR siswa ke kamera</p>
   </section>
@@ -321,6 +382,115 @@ function initials(nama){
   return nama.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 }
 
+/* ---------- Suara "TING" (dibangkitkan langsung, tanpa file audio) ---------- */
+let audioCtx = null;
+function unlockAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('click', unlockAudio, { once:true });
+document.addEventListener('touchstart', unlockAudio, { once:true });
+
+function playTing(){
+  unlockAudio();
+  if(!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+
+  // nada utama, terang & keras
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(1760, t0);       // A6
+  osc.frequency.exponentialRampToValueAtTime(1320, t0 + 0.18);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(1.0, t0 + 0.02);   // serangan cepat & keras
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9); // ekor panjang "ting"
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + 0.9);
+
+  // lapisan harmoni tipis biar berbunyi seperti bel, bukan beep datar
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(2640, t0);
+  gain2.gain.setValueAtTime(0.0001, t0);
+  gain2.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02);
+  gain2.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.5);
+  osc2.connect(gain2).connect(audioCtx.destination);
+  osc2.start(t0);
+  osc2.stop(t0 + 0.5);
+}
+
+function playSudahAbsen(){
+  unlockAudio();
+  if(!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  [880, 660].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t0 + i*0.14);
+    gain.gain.setValueAtTime(0.0001, t0 + i*0.14);
+    gain.gain.exponentialRampToValueAtTime(0.5, t0 + i*0.14 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i*0.14 + 0.35);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0 + i*0.14);
+    osc.stop(t0 + i*0.14 + 0.35);
+  });
+}
+
+/* ---------- Taburan bintang di sekitar overlay ---------- */
+function spawnStars(){
+  const layer = document.getElementById('floatLayer');
+  const glyphs = ['✦','★','✧','⭐'];
+  const count = 14;
+  for(let i = 0; i < count; i++){
+    const star = document.createElement('span');
+    star.className = 'star';
+    star.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+    const angle = (Math.PI * 2 * i / count) + (Math.random() * 0.4 - 0.2);
+    const dist = 90 + Math.random() * 70;
+    star.style.setProperty('--sx', `${Math.cos(angle) * dist}px`);
+    star.style.setProperty('--sy', `${Math.sin(angle) * dist}px`);
+    star.style.setProperty('--srot', `${Math.random() * 360 - 180}deg`);
+    star.style.color = ['#FFD54A','#FFFFFF','#FFB84A'][i % 3];
+    star.style.animationDelay = `${Math.random() * 0.1}s`;
+    layer.appendChild(star);
+    setTimeout(() => star.remove(), 1100);
+  }
+}
+
+/* ---------- Overlay nama+kelas melayang di atas kamera ---------- */
+function showFloatCard({nama, kelas, status, sudahAbsen}){
+  const layer = document.getElementById('floatLayer');
+  const old = layer.querySelector('.float-card');
+  if(old) old.remove();
+
+  const card = document.createElement('div');
+  card.className = 'float-card' + (sudahAbsen ? ' fc-sudah' : '');
+  const pillColor = sudahAbsen ? 'var(--oranye)' : (status === 'TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)');
+  const label = sudahAbsen ? 'SUDAH ABSEN' : status;
+
+  card.innerHTML = `
+    <p class="fc-name">${nama}</p>
+    <p class="fc-kelas">Kelas ${kelas}</p>
+    <span class="fc-status" style="background:${pillColor}">${label}</span>
+  `;
+  layer.appendChild(card);
+  requestAnimationFrame(() => card.classList.add('show'));
+  setTimeout(() => card.remove(), 2600);
+
+  if(!sudahAbsen){
+    playTing();
+    spawnStars();
+  }else{
+    playSudahAbsen();
+  }
+}
+
 function showResult({ok, nama, kelas, status, message}){
   const card = document.getElementById('resultCard');
   card.classList.remove('idle');
@@ -380,6 +550,7 @@ async function onScanSuccess(decodedText){
     const result = await kirimAbsen(nisn);
     if(result.status === 'DUPLIKAT'){
       showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:'SUDAH ABSEN'});
+      showFloatCard({nama:siswa.nama, kelas:siswa.kelas, sudahAbsen:true});
       return;
     }
     if(result.status === 'LIBUR'){
@@ -387,6 +558,7 @@ async function onScanSuccess(decodedText){
       return;
     }
     showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:result.status});
+    showFloatCard({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
     addLogEntry({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
   }catch(err){
     showResult({ok:false, message:"Gagal menyimpan absen — coba lagi"});
