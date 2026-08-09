@@ -894,7 +894,7 @@ document.getElementById('manualList').addEventListener('click', (e) => {
   showManualConfirmView(row.dataset.nisn);
 });
 
-// klik salah satu tombol status di panel konfirmasi -> proses absen
+// klik salah satu tombol status di panel konfirmasi -> proses absen, lalu tutup modal
 document.getElementById('manualConfirmView').addEventListener('click', async (e) => {
   const btn = e.target.closest('.mr-btn');
   if(!btn || btn.disabled || !selectedManualNisn) return;
@@ -904,8 +904,7 @@ document.getElementById('manualConfirmView').addEventListener('click', async (e)
   await prosesAbsen(selectedManualNisn, status);
 
   selectedManualNisn = null;
-  showManualListView();
-  renderManualList(); // daftar ter-update: siswa tadi sekarang tampil "sudah absen"
+  closeManualModal();
 });
 
 /* ---------- Init kamera ---------- */
