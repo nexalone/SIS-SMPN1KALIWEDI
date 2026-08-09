@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Absensi QR — SMP Negeri 1 Kaliwedi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --ink:#13203A;
+    --navy:#1B3B6F;
+    --navy-deep:#0F2647;
+    --merah:#C1272D;
+    --paper:#F4F2EC;
+    --panel:#FFFFFF;
+    --line:#E4E0D6;
+    --hijau:#1E7B4D;
+    --oranye:#C6701B;
+    --abu:#6B7280;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--paper);
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    overflow-x:hidden;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    background:var(--navy-deep);
+    color:#fff;
+    padding:18px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:4px solid var(--merah);
+  }
+  .brand{display:flex;align-items:center;gap:14px;}
+  .brand-mark{
+    width:44px;height:44px;border-radius:10px;
+    background:var(--merah);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Outfit',sans-serif;font-weight:800;font-size:18px;
+    flex-shrink:0;
+  }
+  .brand h1{
+    font-family:'Outfit',sans-serif;
+    font-size:16px;
+    font-weight:700;
+    margin:0;
+    letter-spacing:0.2px;
+  }
+  .brand p{margin:2px 0 0;font-size:12px;color:#B9C6DE;font-weight:500;}
+  #clock{
+    font-family:'Outfit',sans-serif;
+    font-size:22px;
+    font-weight:600;
+    letter-spacing:1px;
+    text-align:right;
+  }
+  #date-label{font-size:12px;color:#B9C6DE;text-align:right;margin-top:2px;}
+
+  /* ---------- Main layout ---------- */
+  main{
+    flex:1;
+    display:flex;
+    gap:20px;
+    padding:20px;
+    max-width:1100px;
+    width:100%;
+    margin:0 auto;
+    align-items:flex-start;
+  }
+  @media (max-width:820px){
+    main{flex-direction:column;}
+  }
+
+  .scan-card{
+    flex:1.1;
+    background:var(--navy-deep);
+    border-radius:18px;
+    padding:16px;
+    position:relative;
+  }
+  .scan-frame{
+    position:relative;
+    width:100%;
+    aspect-ratio:1/1;
+    border-radius:12px;
+    overflow:hidden;
+    background:#000;
+  }
+  #reader{width:100%;height:100%;}
+  #reader video{object-fit:cover;width:100%!important;height:100%!important;}
+
+  /* corner brackets — signature element */
+  .bracket{
+    position:absolute;width:34px;height:34px;
+    border-color:var(--merah);
+    border-style:solid;
+    border-width:0;
+    pointer-events:none;
+    z-index:5;
+  }
+  .b-tl{top:14px;left:14px;border-top-width:4px;border-left-width:4px;border-top-left-radius:8px;}
+  .b-tr{top:14px;right:14px;border-top-width:4px;border-right-width:4px;border-top-right-radius:8px;}
+  .b-bl{bottom:14px;left:14px;border-bottom-width:4px;border-left-width:4px;border-bottom-left-radius:8px;}
+  .b-br{bottom:14px;right:14px;border-bottom-width:4px;border-right-width:4px;border-bottom-right-radius:8px;}
+
+  .scan-line{
+    position:absolute;left:6%;right:6%;height:2px;
+    background:linear-gradient(90deg, transparent, #FF4B4B, transparent);
+    box-shadow:0 0 10px 2px rgba(255,75,75,0.7);
+    top:10%;
+    animation:sweep 2.2s ease-in-out infinite;
+    z-index:4;
+  }
+  @keyframes sweep{
+    0%{top:10%;}
+    50%{top:88%;}
+    100%{top:10%;}
+  }
+  .scan-hint{
+    text-align:center;color:#CBD5E8;font-size:13px;margin-top:12px;font-weight:500;
+  }
+
+  /* ---------- Result panel ---------- */
+  .result-card{
+    flex:0.9;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:18px;
+    padding:24px;
+    min-height:320px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:10px;
+  }
+  .result-card.idle .avatar{background:var(--line);color:var(--abu);}
+  .avatar{
+    width:76px;height:76px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Outfit',sans-serif;font-weight:700;font-size:26px;
+    margin-bottom:6px;
+    color:#fff;
+  }
+  .idle-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:16px;color:var(--ink);}
+  .idle-sub{font-size:13px;color:var(--abu);max-width:220px;}
+
+  .result-name{font-family:'Outfit',sans-serif;font-weight:700;font-size:20px;margin:0;}
+  .result-meta{font-size:13px;color:var(--abu);margin:0;}
+  .status-pill{
+    margin-top:8px;
+    padding:6px 16px;
+    border-radius:999px;
+    font-family:'Outfit',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.3px;
+    color:#fff;
+  }
+  .status-hadir{background:var(--hijau);}
+  .status-terlambat{background:var(--oranye);}
+  .status-error{background:var(--merah);}
+  .result-time{font-size:12px;color:var(--abu);margin-top:2px;}
+
+  /* ---------- Log strip ---------- */
+  .log-wrap{
+    max-width:1100px;
+    margin:0 auto 24px;
+    width:100%;
+    padding:0 20px;
+  }
+  .log-title{
+    font-family:'Outfit',sans-serif;font-weight:700;font-size:13px;
+    color:var(--abu);text-transform:uppercase;letter-spacing:0.6px;
+    margin:0 0 10px 4px;
+  }
+  #log{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .log-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .log-row:last-child{border-bottom:none;}
+  .log-row .lname{font-weight:600;}
+  .log-row .lmeta{color:var(--abu);}
+  .log-empty{padding:20px;text-align:center;color:var(--abu);font-size:13px;}
+
+  .badge{
+    display:inline-block;padding:2px 10px;border-radius:999px;
+    font-size:11px;font-weight:700;color:#fff;font-family:'Outfit',sans-serif;
+  }
+
+  footer{
+    text-align:center;font-size:11px;color:var(--abu);padding:14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">1K</div>
+    <div>
+      <h1>SMP NEGERI 1 KALIWEDI</h1>
+      <p>Kiosk Absensi QR Siswa</p>
+    </div>
+  </div>
+  <div>
+    <div id="clock">--:--:--</div>
+    <div id="date-label">-</div>
+  </div>
+</header>
+
+<main>
+  <section class="scan-card">
+    <div class="scan-frame">
+      <div id="reader"></div>
+      <div class="bracket b-tl"></div>
+      <div class="bracket b-tr"></div>
+      <div class="bracket b-bl"></div>
+      <div class="bracket b-br"></div>
+      <div class="scan-line"></div>
+    </div>
+    <p class="scan-hint" id="scanHint">Arahkan kartu / kode QR siswa ke kamera</p>
+  </section>
+
+  <section class="result-card idle" id="resultCard">
+    <div class="avatar" id="avatar">?</div>
+    <div class="idle-title" id="idleTitle">Menunggu scan…</div>
+    <div class="idle-sub" id="idleSub">Hasil absensi siswa akan muncul di sini setelah QR terbaca.</div>
+  </section>
+</main>
+
+<div class="log-wrap">
+  <p class="log-title">Riwayat scan hari ini</p>
+  <div id="log">
+    <div class="log-empty">Belum ada aktivitas.</div>
+  </div>
+</div>
+
+<footer>Sistem Informasi Sekolah · SMP Negeri 1 Kaliwedi</footer>
+
+<script>
+/* =========================================================
+   KONFIGURASI — sesuaikan sebelum deploy
+   ========================================================= */
+const CONFIG = {
+  // URL Web App Apps Script (deploy sebagai "Anyone" access)
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbwVm8ZDBvbxBeA3DM-fiuPORMaPwybAgwDEgZz8PjsOtLHB1uAhOHukXs8wwAJYDpCL/exec",
+  // Jam batas terlambat (format 24 jam, menit)
+  BATAS_TERLAMBAT: "07:00",
+  // Jeda anti double-scan untuk NISN yang sama (ms)
+  DEDUP_COOLDOWN_MS: 4000,
+};
+
+let siswaMap = {};     // NISN -> {nama, kelas, lp}
+let liburSet = new Set(); // tanggal libur "YYYY-MM-DD"
+let lastScan = { nisn: null, time: 0 };
+let logEntries = [];
+
+/* ---------- Jam realtime ---------- */
+function tickClock(){
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('id-ID', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('date-label').textContent =
+    now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+/* ---------- Ambil data master siswa & libur ---------- */
+async function loadMasterData(){
+  try{
+    const res = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=siswa`);
+    const data = await res.json();
+    (data.siswa || []).forEach(s => { siswaMap[String(s.nisn)] = s; });
+    (data.libur || []).forEach(tgl => liburSet.add(tgl));
+    document.getElementById('scanHint').textContent =
+      `Arahkan kartu / kode QR siswa ke kamera · ${Object.keys(siswaMap).length} siswa dimuat`;
+  }catch(err){
+    document.getElementById('scanHint').textContent =
+      "Gagal memuat data siswa. Periksa koneksi / URL Apps Script.";
+    console.error(err);
+  }
+}
+loadMasterData();
+
+/* ---------- Kirim absen ke server ---------- */
+async function kirimAbsen(nisn){
+  const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+    method: "POST",
+    // text/plain menghindari CORS preflight pada Apps Script
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "absen", nisn })
+  });
+  return res.json();
+}
+
+/* ---------- Render hasil scan ---------- */
+function initials(nama){
+  return nama.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+}
+
+function showResult({ok, nama, kelas, status, message}){
+  const card = document.getElementById('resultCard');
+  card.classList.remove('idle');
+
+  if(!ok){
+    card.innerHTML = `
+      <div class="avatar" style="background:var(--merah)">!</div>
+      <p class="result-name">${message || 'NISN tidak ditemukan'}</p>
+      <div class="status-pill status-error">GAGAL</div>
+    `;
+    return;
+  }
+
+  const statusClass = status === 'TERLAMBAT' ? 'status-terlambat' : 'status-hadir';
+  const avatarColor = status === 'TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)';
+
+  card.innerHTML = `
+    <div class="avatar" style="background:${avatarColor}">${initials(nama)}</div>
+    <p class="result-name">${nama}</p>
+    <p class="result-meta">Kelas ${kelas}</p>
+    <div class="status-pill ${statusClass}">${status}</div>
+    <p class="result-time">${new Date().toLocaleTimeString('id-ID')}</p>
+  `;
+}
+
+function addLogEntry({nama, kelas, status}){
+  logEntries.unshift({nama, kelas, status, time: new Date()});
+  logEntries = logEntries.slice(0, 30);
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = logEntries.map(e => `
+    <div class="log-row">
+      <span class="lname">${e.nama} <span class="lmeta">· ${e.kelas}</span></span>
+      <span>
+        <span class="badge" style="background:${e.status==='TERLAMBAT' ? 'var(--oranye)' : 'var(--hijau)'}">${e.status}</span>
+        <span class="lmeta" style="margin-left:8px">${e.time.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</span>
+      </span>
+    </div>
+  `).join('');
+}
+
+/* ---------- Handler scan QR ---------- */
+async function onScanSuccess(decodedText){
+  const nisn = decodedText.trim();
+  const now = Date.now();
+
+  // anti double-scan cepat untuk NISN sama
+  if(nisn === lastScan.nisn && (now - lastScan.time) < CONFIG.DEDUP_COOLDOWN_MS) return;
+  lastScan = { nisn, time: now };
+
+  const siswa = siswaMap[nisn];
+  if(!siswa){
+    showResult({ok:false, message:"NISN tidak terdaftar"});
+    return;
+  }
+
+  try{
+    const result = await kirimAbsen(nisn);
+    if(result.status === 'DUPLIKAT'){
+      showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:'SUDAH ABSEN'});
+      return;
+    }
+    if(result.status === 'LIBUR'){
+      showResult({ok:false, message:"Hari ini libur — absensi tidak dicatat"});
+      return;
+    }
+    showResult({ok:true, nama:siswa.nama, kelas:siswa.kelas, status:result.status});
+    addLogEntry({nama:siswa.nama, kelas:siswa.kelas, status:result.status});
+  }catch(err){
+    showResult({ok:false, message:"Gagal menyimpan absen — coba lagi"});
+    console.error(err);
+  }
+}
+
+/* ---------- Init kamera ---------- */
+const html5QrCode = new Html5Qrcode("reader");
+html5QrCode.start(
+  { facingMode: "environment" },
+  { fps: 10, qrbox: { width: 240, height: 240 } },
+  onScanSuccess,
+  () => {} // scan gagal per-frame, diamkan
+).catch(err => {
+  document.getElementById('scanHint').textContent =
+    "Tidak bisa mengakses kamera. Izinkan akses kamera di browser.";
+  console.error(err);
+});
+</script>
+</body>
+</html>
