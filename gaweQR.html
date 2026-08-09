@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Kartu QR Siswa — SMPN 1 Kaliwedi</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root{--navy:#0f4c81;--ink:#1f2a36;--muted:#66788a;--line:#e3e9ef;--bg:#f4f7fa}
 *{box-sizing:border-box}
@@ -17,24 +16,26 @@ header p{margin:4px 0 0;font-size:13px;opacity:.85}
 .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
 #side{flex:1 1 320px;max-width:430px}
 #main{flex:1 1 420px;display:flex;flex-direction:column;align-items:center;gap:12px}
-#search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;margin-bottom:10px}
-#list{max-height:520px;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+label.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
+select,#search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff}
+#list{max-height:430px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-top:10px}
 .item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
 .item:last-child{border-bottom:none}
 .item:hover{background:#f0f5fa}
 .item.active{background:#e3eefb;border-left:4px solid var(--navy)}
 .item .nm{font-weight:600;font-size:14px}
 .item .sub{font-size:12px;color:var(--muted);margin-top:2px}
-#count{font-size:12px;color:var(--muted);margin:8px 2px 0}
+#count{font-size:12px;color:var(--muted);margin-top:8px}
 #cardCanvas{width:min(300px,78vw);height:auto;border-radius:10px;box-shadow:0 4px 18px rgba(15,76,129,.25);background:#fff}
-#cardMeta{font-size:13px;color:var(--muted);text-align:center}
+#cardMeta{font-size:13px;color:var(--muted);text-align:center;min-height:18px}
 .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 button{padding:10px 14px;border:none;border-radius:8px;background:var(--navy);color:#fff;font-size:13px;cursor:pointer}
 button:hover{filter:brightness(1.1)}
 button:disabled{opacity:.5;cursor:not-allowed}
 button.alt{background:#5a6b7b}
-#status{font-size:13px;color:var(--muted);min-height:18px;text-align:center}
-.filebox{font-size:12px;color:var(--muted);margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+#status{font-size:13px;color:var(--muted);min-height:20px;text-align:center;font-weight:600}
+.filebox{font-size:12px;color:var(--muted);margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+.filebox pre{background:#f6f8fa;border:1px solid var(--line);border-radius:6px;padding:8px;max-height:160px;overflow:auto;font-size:11px;white-space:pre-wrap}
 .hint{font-size:12px;color:var(--muted);text-align:center;max-width:340px}
 #print-area{display:none}
 @media print{
@@ -53,25 +54,34 @@ button.alt{background:#5a6b7b}
 
 <div id="app">
   <div id="side" class="panel">
-    <input id="search" type="text" placeholder="🔍 Cari nama / NISN / kelas…"/>
+    <label class="lbl">1. Pilih Kelas</label>
+    <select id="kelasSel"></select>
+
+    <label class="lbl">2. Pilih Nama</label>
+    <input id="search" type="text" placeholder="🔍 Cari nama / NISN…"/>
     <div id="list"></div>
     <div id="count"></div>
+
     <div class="filebox">
       Jika gagal memuat dari GitHub: <input type="file" id="fileJson" accept=".json"/>
+      <details style="margin-top:8px">
+        <summary style="cursor:pointer">Cek data (debug)</summary>
+        <pre id="dbg">Belum ada data…</pre>
+      </details>
     </div>
   </div>
 
   <div id="main" class="panel">
     <canvas id="cardCanvas"></canvas>
-    <div id="cardMeta">—</div>
+    <div id="cardMeta">Pilih kelas lalu nama untuk melihat kartu</div>
     <div class="btns">
-      <button id="btnPng">⬇ Download PNG</button>
-      <button id="btnPrintOne" class="alt">🖨 Cetak Kartu Ini</button>
-      <button id="btnZip">📦 Download Semua (ZIP)</button>
-      <button id="btnPrintAll" class="alt">🖨 Cetak Semua (A4)</button>
+      <button id="btnPng" disabled>⬇ Download PNG</button>
+      <button id="btnPrintOne" class="alt" disabled>🖨 Cetak Kartu Ini</button>
+      <button id="btnZip" disabled>📦 Download Semua (ZIP)</button>
+      <button id="btnPrintAll" class="alt" disabled>🖨 Cetak Semua (A4)</button>
     </div>
     <div id="status">Memuat…</div>
-    <div class="hint">Saat mencetak: pilih kertas A4, skala 100% (jangan "fit to page") agar ukuran tetap 54 × 86 mm. Muat ±9 kartu per halaman.</div>
+    <div class="hint">Saat mencetak: kertas A4, skala 100% (jangan "fit to page") agar ukuran tetap 54 × 86 mm. ±9 kartu per halaman.</div>
   </div>
 </div>
 
@@ -87,240 +97,228 @@ const LOGO_URLS = ['assets/logo-smp.png','assets/logo.jpg','assets/logo.webp','a
 const NAMA_SEKOLAH = 'SMP NEGERI 1 KALIWEDI';
 const LABEL_JUDUL  = 'KARTU DATA SISWA';
 
-/* Ukuran KTP: 54 x 86 mm, 300 DPI */
 const MMPX = 300/25.4;
-const CARD_W = Math.round(54*MMPX);  // 638 px
-const CARD_H = Math.round(86*MMPX);  // 1016 px
+const CARD_W = Math.round(54*MMPX);
+const CARD_H = Math.round(86*MMPX);
 const NAVY = '#0f4c81';
 
-let students = [], selectedIdx = -1, logoImg = null, busy = false;
+let students=[], classes=[], selectedKelas=null, selectedIdx=-1, logoImg=null, busy=false;
 
 /* ================= UTIL ================= */
-const $ = id => document.getElementById(id);
-const setStatus = t => $('status').textContent = t;
-
-function stripLeadingZero(n){ return String(n).trim().replace(/^0+(?=\d)/,''); }
-
-function saveBlob(blob,name){
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download=name;
-  document.body.appendChild(a); a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);
-}
-function canvasToBlob(c){ return new Promise(r=>c.toBlob(r,'image/png')); }
-function tryImg(src){ return new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src;}); }
-
-/* ================= DATA ================= */
-function normalize(json){
-  let arr=null;
-  if(Array.isArray(json)) arr=json;
-  else{
-    for(const k of ['siswa','data','students','peserta','records'])
-      if(Array.isArray(json[k])){ arr=json[k]; break; }
-    if(!arr) for(const v of Object.values(json)) if(Array.isArray(v)){ arr=v; break; }
-  }
-  if(!arr) return [];
-  return arr.map(r=>{
-    const lower={}; Object.keys(r||{}).forEach(k=>lower[k.toLowerCase()]=r[k]);
-    const pick=(...keys)=>{
-      for(const k of keys){ const v=lower[k];
-        if(v!==undefined&&v!==null&&String(v).trim()!=='') return String(v).trim(); }
-      return '';
-    };
-    return {
-      nama : pick('nama','name','nama_lengkap','nama_siswa','siswa'),
-      nisn : pick('nisn'),
-      kelas: pick('kelas','class','rombel','kelas_nama')
-    };
-  }).filter(s=>s.nama||s.nisn);
-}
-
-async function loadData(){
-  const custom = new URLSearchParams(location.search).get('data');
-  const urls = custom ? [custom, ...REPO_DATA] : REPO_DATA;
-  for(const u of urls){
-    try{
-      const r=await fetch(u,{cache:'no-store'});
-      if(!r.ok) continue;
-      students=normalize(await r.json());
-      if(students.length){ setStatus(`✔ ${students.length} data siswa dimuat.`); return true; }
-    }catch(e){}
+const $=id=>document.getElementById(id);
+const setStatus=t=>{$('status').textContent=t;};
+const stripLeadingZero=n=>String(n==null?'':n).trim().replace(/^0+(?=\d)/,'');
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+async function ensureQR(){
+  if(window.QRCode&&QRCode.toCanvas)return true;
+  for(const u of ['https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js','https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js']){
+    try{await loadScript(u); if(window.QRCode&&QRCode.toCanvas)return true;}catch(e){}
   }
   return false;
 }
-
-async function loadLogo(){
-  for(const u of LOGO_URLS){ try{ logoImg=await tryImg(u); return; }catch(e){} }
+async function ensureZip(){
+  if(window.JSZip)return true;
+  for(const u of ['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js']){
+    try{await loadScript(u); if(window.JSZip)return true;}catch(e){}
+  }
+  return false;
 }
+function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
+function canvasToBlob(c){return new Promise(r=>c.toBlob(r,'image/png'));}
+function tryImg(src){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src;});}
+
+/* ================= NORMALISASI DATA ================= */
+function pickField(obj,keys){
+  const lower={}; Object.keys(obj||{}).forEach(k=>lower[k.toLowerCase()]=obj[k]);
+  for(const k of keys){
+    let v=lower[k];
+    if(v===undefined||v===null)continue;
+    if(typeof v==='object'){ // nested, coba ambil dari subfield umum
+      v=v.nama||v.name||v.label||v.value||'';
+    }
+    v=String(v).trim();
+    if(v!=='')return v;
+  }
+  return '';
+}
+function normalize(json){
+  let arr=null;
+  if(Array.isArray(json))arr=json;
+  else if(json&&typeof json==='object'){
+    for(const k of ['siswa','data','students','peserta','records','list','items','result'])
+      if(Array.isArray(json[k])){arr=json[k];break;}
+    if(!arr){ // mungkin dikelompokkan per kelas: {"7A":[...], "7B":[...]}
+      const temp=[];
+      for(const [k,v] of Object.entries(json)){
+        if(Array.isArray(v)) v.forEach(it=>{ if(it&&typeof it==='object') temp.push({...it,_k:k}); });
+      }
+      if(temp.length)arr=temp;
+    }
+  }
+  if(!arr)return [];
+  return arr.map(r=>({
+    nama : pickField(r,['nama','name','nama_lengkap','nama_siswa','siswa','nama_peserta']),
+    nisn : pickField(r,['nisn','nisn_siswa']),
+    kelas: pickField(r,['kelas','class','rombel','kelas_nama','tingkat']) || r._k || ''
+  })).filter(s=>s.nama||s.nisn);
+}
+
+async function loadData(){
+  const custom=new URLSearchParams(location.search).get('data');
+  const urls=custom?[custom,...REPO_DATA]:REPO_DATA;
+  for(const u of urls){
+    try{
+      const r=await fetch(u,{cache:'no-store'}); if(!r.ok)continue;
+      const json=await r.json();
+      console.log('Raw JSON dari',u,json);
+      students=normalize(json);
+      console.log('Hasil parse:',students);
+      $('dbg').textContent=JSON.stringify({sumber:u,total:students.length,contoh:students[0]||null},null,2);
+      if(students.length)return true;
+    }catch(e){console.warn('Gagal memuat',u,e);}
+  }
+  return false;
+}
+async function loadLogo(){for(const u of LOGO_URLS){try{logoImg=await tryImg(u);return;}catch(e){}}}
 
 /* ================= GAMBAR KARTU ================= */
-function roundRect(ctx,x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);     ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
-}
-function wrapText(ctx,text,maxW){
-  const words=text.split(/\s+/), lines=[]; let line='';
-  for(const w of words){
-    const t=line?line+' '+w:w;
-    if(ctx.measureText(t).width<=maxW||!line) line=t;
-    else{ lines.push(line); line=w; }
-  }
-  if(line) lines.push(line);
-  return lines;
-}
-function drawLabelValue(ctx,label,value,cx,cy){
-  ctx.font='bold 26px Arial'; const lw=ctx.measureText(label).width;
-  ctx.font='26px Arial';      const vw=ctx.measureText(value).width;
-  let x=cx-(lw+vw)/2;
-  ctx.textAlign='left';
-  ctx.font='bold 26px Arial'; ctx.fillText(label,x,cy);
-  ctx.font='26px Arial';      ctx.fillText(value,x+lw,cy);
-  ctx.textAlign='center';
-}
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function wrapText(ctx,text,maxW){const words=String(text).split(/\s+/),lines=[];let line='';for(const w of words){const t=line?line+' '+w:w;if(ctx.measureText(t).width<=maxW||!line)line=t;else{lines.push(line);line=w;}}if(line)lines.push(line);return lines;}
+function drawLabelValue(ctx,label,value,cx,cy){ctx.font='bold 26px Arial';const lw=ctx.measureText(label).width;ctx.font='26px Arial';const vw=ctx.measureText(value).width;let x=cx-(lw+vw)/2;ctx.textAlign='left';ctx.font='bold 26px Arial';ctx.fillText(label,x,cy);ctx.font='26px Arial';ctx.fillText(value,x+lw,cy);ctx.textAlign='center';}
 
 async function renderCard(s){
-  const c=document.createElement('canvas');
-  c.width=CARD_W; c.height=CARD_H;
+  const c=document.createElement('canvas');c.width=CARD_W;c.height=CARD_H;
   const ctx=c.getContext('2d');
-
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,CARD_W,CARD_H);
-  ctx.fillStyle=NAVY;
-  ctx.fillRect(0,0,CARD_W,16); ctx.fillRect(0,CARD_H-16,CARD_W,16);
-  ctx.strokeStyle='#d5dde5'; ctx.lineWidth=3;
-  roundRect(ctx,12,24,CARD_W-24,CARD_H-48,18); ctx.stroke();
-
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,CARD_W,CARD_H);
+  ctx.fillStyle=NAVY;ctx.fillRect(0,0,CARD_W,16);ctx.fillRect(0,CARD_H-16,CARD_W,16);
+  ctx.strokeStyle='#d5dde5';ctx.lineWidth=3;roundRect(ctx,12,24,CARD_W-24,CARD_H-48,18);ctx.stroke();
   ctx.textAlign='center';
   let y=56;
-  if(logoImg){
-    let h=140, w=logoImg.width*(140/logoImg.height);
-    if(w>320){ w=320; h=logoImg.height*(320/logoImg.width); }
-    ctx.drawImage(logoImg,(CARD_W-w)/2,y,w,h);
-    y+=h+14;
-  } else y+=46;
+  if(logoImg){let h=140,w=logoImg.width*(140/logoImg.height);if(w>320){w=320;h=logoImg.height*(320/logoImg.width);}ctx.drawImage(logoImg,(CARD_W-w)/2,y,w,h);y+=h+14;}else y+=46;
+  ctx.fillStyle=NAVY;ctx.font='bold 34px Arial';ctx.fillText(NAMA_SEKOLAH,CARD_W/2,y+26);y+=42;
+  ctx.fillStyle='#66788a';ctx.font='21px Arial';ctx.fillText(LABEL_JUDUL,CARD_W/2,y+16);y+=28;
+  ctx.strokeStyle='#dbe3ea';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(60,y);ctx.lineTo(CARD_W-60,y);ctx.stroke();
 
-  ctx.fillStyle=NAVY; ctx.font='bold 34px Arial';
-  ctx.fillText(NAMA_SEKOLAH,CARD_W/2,y+26); y+=42;
-  ctx.fillStyle='#66788a'; ctx.font='21px Arial';
-  ctx.fillText(LABEL_JUDUL,CARD_W/2,y+16); y+=28;
-  ctx.strokeStyle='#dbe3ea'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(60,y); ctx.lineTo(CARD_W-60,y); ctx.stroke();
+  const qrText=stripLeadingZero(s.nisn)||s.nama||'-';
+  const QR=396,qy=y+18;
+  if(await ensureQR()){
+    const qc=document.createElement('canvas');
+    await QRCode.toCanvas(qc,qrText,{width:QR,margin:1,errorCorrectionLevel:'M',color:{dark:'#101820',light:'#ffffff'}});
+    ctx.drawImage(qc,(CARD_W-QR)/2,qy,QR,QR);
+  }else{
+    ctx.fillStyle='#c0392b';ctx.font='24px Arial';ctx.fillText('QR gagal dimuat',CARD_W/2,qy+QR/2);
+  }
 
-  /* QR: NISN tanpa nol di depan */
-  const qrText = stripLeadingZero(s.nisn) || s.nama || '-';
-  const qc=document.createElement('canvas');
-  await QRCode.toCanvas(qc,qrText,{width:396,margin:1,errorCorrectionLevel:'M',
-    color:{dark:'#101820',light:'#ffffff'}});
-  const QR=396, qy=y+18;
-  ctx.drawImage(qc,(CARD_W-QR)/2,qy,QR,QR);
-
-  /* NAMA (maks 2 baris) */
-  ctx.fillStyle='#101820'; ctx.font='bold 32px Arial';
+  ctx.fillStyle='#101820';ctx.font='bold 32px Arial';
   let lines=wrapText(ctx,(s.nama||'—').toUpperCase(),CARD_W-110);
-  if(lines.length>2){ lines=lines.slice(0,2); lines[1]=lines[1].replace(/.{2}$/,'')+'…'; }
-  let ty=qy+QR+50 + (lines.length===1?18:0);
-  for(const ln of lines){ ctx.fillText(ln,CARD_W/2,ty); ty+=40; }
-
-  /* NISN (sesuai data asli) & KELAS */
+  if(lines.length>2){lines=lines.slice(0,2);lines[1]=lines[1].replace(/.{2}$/,'')+'…';}
+  let ty=qy+QR+50+(lines.length===1?18:0);
+  for(const ln of lines){ctx.fillText(ln,CARD_W/2,ty);ty+=40;}
   ctx.fillStyle='#24313f';
-  drawLabelValue(ctx,'NISN : ', s.nisn||'-', CARD_W/2, ty+14);
-  drawLabelValue(ctx,'Kelas : ', s.kelas||'-', CARD_W/2, ty+56);
+  drawLabelValue(ctx,'NISN : ',s.nisn||'-',CARD_W/2,ty+14);
+  drawLabelValue(ctx,'Kelas : ',s.kelas||'-',CARD_W/2,ty+56);
   return c;
 }
 
-/* ================= UI ================= */
+function showPlaceholder(msg){
+  const pc=$('cardCanvas');pc.width=CARD_W;pc.height=CARD_H;
+  const ctx=pc.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,CARD_W,CARD_H);
+  ctx.strokeStyle='#e3e9ef';ctx.lineWidth=3;roundRect(ctx,12,24,CARD_W-24,CARD_H-48,18);ctx.stroke();
+  ctx.fillStyle='#999';ctx.font='26px Arial';ctx.textAlign='center';
+  const lines=wrapText(ctx,msg,CARD_W-120);let y=CARD_H/2-(lines.length*34)/2;
+  for(const ln of lines){ctx.fillText(ln,CARD_W/2,y);y+=34;}
+}
+
+/* ================= UI: KELAS -> NAMA ================= */
+function buildClasses(){
+  const set=new Set();students.forEach(s=>set.add(s.kelas||''));
+  classes=[...set].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  classes.sort((a,b)=>(a===''?1:0)-(b===''?1:0));
+}
+function fillKelas(){
+  const sel=$('kelasSel');sel.innerHTML='';
+  if(!classes.length){const o=document.createElement('option');o.textContent='(tidak ada data)';sel.appendChild(o);return;}
+  classes.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k||'(Tanpa Kelas)';sel.appendChild(o);});
+}
 function renderList(){
-  const q=$('search').value.toLowerCase();
-  const el=$('list'); el.innerHTML='';
+  const q=($('search').value||'').toLowerCase();
+  const el=$('list');el.innerHTML='';let shown=0;
   students.forEach((s,i)=>{
-    const hit=(s.nama+' '+s.nisn+' '+s.kelas).toLowerCase().includes(q);
-    if(!hit) return;
+    if((s.kelas||'')!==(selectedKelas||''))return;
+    if(!((s.nama+' '+s.nisn).toLowerCase().includes(q)))return;
+    shown++;
     const d=document.createElement('div');
-    d.className='item'+(i===selectedIdx?' active':'');
-    d.dataset.i=i;
-    d.innerHTML=`<div class="nm">${s.nama||'—'}</div>
-                 <div class="sub">NISN ${s.nisn||'-'} • Kelas ${s.kelas||'-'}</div>`;
+    d.className='item'+(i===selectedIdx?' active':'');d.dataset.i=i;
+    d.innerHTML=`<div class="nm">${s.nama||'—'}</div><div class="sub">NISN ${s.nisn||'-'}</div>`;
     el.appendChild(d);
   });
-  $('count').textContent = `${el.childElementCount} dari ${students.length} siswa ditampilkan`;
+  $('count').textContent=`${shown} siswa di kelas ${selectedKelas||'(Tanpa Kelas)'}`;
 }
-$('list').addEventListener('click',e=>{
-  const it=e.target.closest('[data-i]'); if(it) select(+it.dataset.i);
-});
+$('list').addEventListener('click',e=>{const it=e.target.closest('[data-i]');if(it)select(+it.dataset.i);});
 $('search').addEventListener('input',renderList);
+$('kelasSel').addEventListener('change',e=>{selectedKelas=e.target.value;selectedIdx=-1;renderList();setBtns(false);$('cardMeta').textContent='Pilih nama untuk melihat kartu';showPlaceholder('Pilih nama di sebelah kiri');});
 
 async function select(i){
-  selectedIdx=i; renderList();
+  selectedIdx=i;renderList();setBtns(true);
   const s=students[i];
-  $('cardMeta').textContent=`QR berisi: ${stripLeadingZero(s.nisn)||'—'}`;
-  const pc=$('cardCanvas'), c=await renderCard(s);
-  pc.width=CARD_W; pc.height=CARD_H;
-  pc.getContext('2d').drawImage(c,0,0);
+  $('cardMeta').textContent=`QR berisi: ${stripLeadingZero(s.nisn)||s.nama||'—'}`;
+  try{
+    setStatus('Membuat pratinjau…');
+    const c=await renderCard(s);
+    const pc=$('cardCanvas');pc.width=CARD_W;pc.height=CARD_H;
+    pc.getContext('2d').drawImage(c,0,0);
+    setStatus('✔ Pratinjau siap.');
+  }catch(err){
+    console.error(err);setStatus('⚠ Gagal render: '+err.message);
+    showPlaceholder('Gagal render: '+err.message);
+  }
 }
+function setBtns(on){['btnPng','btnPrintOne','btnZip','btnPrintAll'].forEach(id=>$(id).disabled=!on);}
 
-function fname(s,i){
-  const base=((s.nisn||String(i+1))+'_'+(s.nama||'siswa'))
-    .replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'_');
-  return base+'.png';
-}
-
-$('btnPng').onclick=async()=>{
-  if(selectedIdx<0)return;
-  saveBlob(await canvasToBlob(await renderCard(students[selectedIdx])),fname(students[selectedIdx],selectedIdx));
-};
+/* ================= AKSI ================= */
+function fname(s,i){return(((s.nisn||String(i+1))+'_'+(s.nama||'siswa')).replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'_'))+'.png';}
+$('btnPng').onclick=async()=>{if(selectedIdx<0)return;saveBlob(await canvasToBlob(await renderCard(students[selectedIdx])),fname(students[selectedIdx],selectedIdx));};
 $('btnZip').onclick=async()=>{
-  if(busy||!students.length)return; busy=true; setBtns(false);
+  if(busy||!students.length)return;busy=true;setBtns(false);
+  if(!(await ensureZip())){setStatus('⚠ Gagal memuat JSZip.');busy=true;setBtns(true);return;}
   try{
     const zip=new JSZip();
-    for(let i=0;i<students.length;i++){
-      setStatus(`Membuat kartu ${i+1}/${students.length}…`);
-      zip.file(fname(students[i],i), await canvasToBlob(await renderCard(students[i])));
-      if(i%3===0) await new Promise(r=>setTimeout(r));
-    }
+    for(let i=0;i<students.length;i++){setStatus(`Membuat kartu ${i+1}/${students.length}…`);zip.file(fname(students[i],i),await canvasToBlob(await renderCard(students[i])));if(i%3===0)await new Promise(r=>setTimeout(r));}
     setStatus('Mengompres ZIP…');
     saveBlob(await zip.generateAsync({type:'blob'}),'kartu-qr-siswa.zip');
     setStatus('✔ Selesai.');
-  }finally{ busy=false; setBtns(true); }
+  }finally{busy=false;setBtns(true);}
 };
 async function fillPrint(list){
-  const area=$('print-area'); area.innerHTML='';
-  for(let i=0;i<list.length;i++){
-    setStatus(`Menyiapkan kartu ${i+1}/${list.length}…`);
-    const img=document.createElement('img');
-    img.className='print-card';
-    img.src=(await renderCard(list[i])).toDataURL('image/png');
-    area.appendChild(img);
-    if(i%5===0) await new Promise(r=>setTimeout(r));
-  }
+  const area=$('print-area');area.innerHTML='';
+  for(let i=0;i<list.length;i++){setStatus(`Menyiapkan kartu ${i+1}/${list.length}…`);const img=document.createElement('img');img.className='print-card';img.src=(await renderCard(list[i])).toDataURL('image/png');area.appendChild(img);if(i%5===0)await new Promise(r=>setTimeout(r));}
 }
-$('btnPrintOne').onclick=async()=>{
-  if(busy||selectedIdx<0)return; busy=true; setBtns(false);
-  await fillPrint([students[selectedIdx]]); window.print();
-  busy=false; setBtns(true); setStatus('Siap.');
-};
-$('btnPrintAll').onclick=async()=>{
-  if(busy||!students.length)return; busy=true; setBtns(false);
-  await fillPrint(students); window.print();
-  busy=false; setBtns(true); setStatus('Siap.');
-};
-function setBtns(on){ document.querySelectorAll('button').forEach(b=>b.disabled=!on); }
+$('btnPrintOne').onclick=async()=>{if(busy||selectedIdx<0)return;busy=true;setBtns(false);await fillPrint([students[selectedIdx]]);window.print();busy=false;setBtns(true);setStatus('Siap.');};
+$('btnPrintAll').onclick=async()=>{if(busy||!students.length)return;busy=true;setBtns(false);await fillPrint(students);window.print();busy=false;setBtns(true);setStatus('Siap.');};
 
 $('fileJson').onchange=async e=>{
-  const f=e.target.files[0]; if(!f)return;
-  try{ students=normalize(JSON.parse(await f.text()));
-       renderList(); if(students.length) select(0);
-       setStatus(`✔ ${students.length} data dari file lokal.`);
-  }catch(err){ setStatus('File JSON tidak valid.'); }
+  const f=e.target.files[0];if(!f)return;
+  try{students=normalize(JSON.parse(await f.text()));afterLoad(true);}
+  catch(err){setStatus('⚠ File JSON tidak valid.');}
 };
 
+/* ================= INIT ================= */
+function afterLoad(fromFile){
+  buildClasses();fillKelas();
+  if(classes.length){selectedKelas=classes[0];$('kelasSel').value=selectedKelas;}
+  renderList();
+  const first=students.findIndex(s=>(s.kelas||'')===selectedKelas);
+  if(first>=0){select(first);}else{showPlaceholder('Pilih kelas lalu nama di sebelah kiri');}
+  if(!fromFile)setStatus(`✔ ${students.length} data siswa dimuat.`);
+  else setStatus(`✔ ${students.length} data dari file lokal.`);
+}
 (async function init(){
   setStatus('Memuat data siswa dari GitHub…');
+  showPlaceholder('Memuat data…');
   await loadLogo();
-  if(!logoImg) console.warn('Logo tidak ditemukan di folder assets/.');
-  if(await loadData()){ renderList(); select(0); }
-  else setStatus('⚠ Gagal memuat data GitHub. Coba file JSON lokal di panel kiri.');
+  if(await loadData())afterLoad(false);
+  else{setStatus('⚠ Data tidak terbaca. Coba file JSON lokal, atau buka “Cek data” untuk melihat bentuk datanya.');showPlaceholder('Data tidak terbaca. Lihat panel “Cek data”.');}
 })();
 </script>
 </body>
