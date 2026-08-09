@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Kartu QR Siswa — SMPN 1 Kaliwedi</title>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
 :root{--navy:#0f4c81;--ink:#1f2a36;--muted:#66788a;--line:#e3e9ef;--bg:#f4f7fa}
 *{box-sizing:border-box}
@@ -14,18 +14,28 @@ header h1{margin:0;font-size:20px}
 header p{margin:4px 0 0;font-size:13px;opacity:.85}
 #app{display:flex;gap:20px;padding:20px;flex-wrap:wrap;align-items:flex-start}
 .panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
-#side{flex:1 1 320px;max-width:430px}
+#side{flex:1 1 340px;max-width:440px}
 #main{flex:1 1 420px;display:flex;flex-direction:column;align-items:center;gap:12px}
 label.lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 4px}
 select,#search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff}
-#list{max-height:430px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-top:10px}
-.item{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+#list{max-height:360px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-top:10px}
+.item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line);cursor:pointer}
 .item:last-child{border-bottom:none}
 .item:hover{background:#f0f5fa}
-.item.active{background:#e3eefb;border-left:4px solid var(--navy)}
+.item input[type=checkbox]{width:18px;height:18px;accent-color:var(--navy);flex:none;cursor:pointer}
+.item .txt{display:flex;flex-direction:column;min-width:0}
 .item .nm{font-weight:600;font-size:14px}
 .item .sub{font-size:12px;color:var(--muted);margin-top:2px}
+.item.selected{background:#e3eefb}
+.item.previewing{box-shadow:inset 4px 0 0 #f39c12}
+.selbtns{display:flex;gap:8px;margin-top:10px}
+.selbtns button{flex:1;font-size:12px;padding:8px}
+button.ghost{background:#eef2f6;color:var(--ink);border:1px solid var(--line)}
 #count{font-size:12px;color:var(--muted);margin-top:8px}
+#selChips{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow:auto}
+.chip{background:#e3eefb;border:1px solid #bcd6ef;border-radius:16px;padding:3px 8px;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.chip b{cursor:pointer;color:#c0392b;font-weight:700}
+.empty{font-size:12px;color:var(--muted)}
 #cardCanvas{width:min(300px,78vw);height:auto;border-radius:10px;box-shadow:0 4px 18px rgba(15,76,129,.25);background:#fff}
 #cardMeta{font-size:13px;color:var(--muted);text-align:center;min-height:18px}
 .btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
@@ -57,10 +67,15 @@ button.alt{background:#5a6b7b}
     <label class="lbl">1. Pilih Kelas</label>
     <select id="kelasSel"></select>
 
-    <label class="lbl">2. Pilih Nama</label>
+    <label class="lbl">2. Centang Nama (bisa dari beberapa kelas)</label>
     <input id="search" type="text" placeholder="🔍 Cari nama / NISN…"/>
     <div id="list"></div>
+    <div class="selbtns">
+      <button id="btnSelAll">✓ Pilih semua di kelas ini</button>
+      <button id="btnClear" class="ghost">✗ Kosongkan pilihan</button>
+    </div>
     <div id="count"></div>
+    <div id="selChips"></div>
 
     <div class="filebox">
       Jika gagal memuat dari GitHub: <input type="file" id="fileJson" accept=".json"/>
@@ -73,15 +88,15 @@ button.alt{background:#5a6b7b}
 
   <div id="main" class="panel">
     <canvas id="cardCanvas"></canvas>
-    <div id="cardMeta">Pilih kelas lalu nama untuk melihat kartu</div>
+    <div id="cardMeta">Pilih kelas lalu centang nama untuk melihat kartu</div>
     <div class="btns">
-      <button id="btnPng" disabled>⬇ Download PNG</button>
+      <button id="btnPng" disabled>⬇ Download PNG (ini)</button>
       <button id="btnPrintOne" class="alt" disabled>🖨 Cetak Kartu Ini</button>
-      <button id="btnZip" disabled>📦 Download Semua (ZIP)</button>
-      <button id="btnPrintAll" class="alt" disabled>🖨 Cetak Semua (A4)</button>
+      <button id="btnZip" disabled>📦 Download Terpilih (ZIP)</button>
+      <button id="btnPrintSel" class="alt" disabled>🖨 Cetak Terpilih (A4)</button>
     </div>
     <div id="status">Memuat…</div>
-    <div class="hint">Saat mencetak: kertas A4, skala 100% (jangan "fit to page") agar ukuran tetap 54 × 86 mm. ±9 kartu per halaman.</div>
+    <div class="hint">Centang nama untuk memilih. Pilihan tetap tersimpan saat pindah kelas, jadi bisa memilih siswa dari beberapa kelas sekaligus. Saat mencetak: A4, skala 100%.</div>
   </div>
 </div>
 
@@ -93,7 +108,7 @@ const REPO_DATA = [
   'https://raw.githubusercontent.com/nexalone/SIS-SMPN1KALIWEDI/main/data-kiosk.json',
   'https://raw.githubusercontent.com/nexalone/SIS-SMPN1KALIWEDI/master/data-kiosk.json'
 ];
-const LOGO_URLS = ['assets/logo-smp.png','assets/logo.jpg','assets/logo.webp','assets/logo.svg'];
+const LOGO_URLS = ['assets/logo_smp.png','assets/logo.png','assets/logo.jpg','assets/logo.webp','assets/logo.svg'];
 const NAMA_SEKOLAH = 'SMP NEGERI 1 KALIWEDI';
 const LABEL_JUDUL  = 'KARTU DATA SISWA';
 
@@ -102,7 +117,10 @@ const CARD_W = Math.round(54*MMPX);
 const CARD_H = Math.round(86*MMPX);
 const NAVY = '#0f4c81';
 
-let students=[], classes=[], selectedKelas=null, selectedIdx=-1, logoImg=null, busy=false;
+let students=[], classes=[], selectedKelas=null;
+let selectedSet=new Set();   // index global siswa yang dicentang
+let previewIdx=-1;           // siswa yang sedang ditampilkan
+let logoImg=null, busy=false;
 
 /* ================= UTIL ================= */
 const $=id=>document.getElementById(id);
@@ -110,17 +128,20 @@ const setStatus=t=>{$('status').textContent=t;};
 const stripLeadingZero=n=>String(n==null?'':n).trim().replace(/^0+(?=\d)/,'');
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
 async function ensureQR(){
-  if(window.QRCode&&QRCode.toCanvas)return true;
-  for(const u of ['https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js','https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js']){
-    try{await loadScript(u); if(window.QRCode&&QRCode.toCanvas)return true;}catch(e){}
-  }
+  if(window.qrcode&&typeof window.qrcode==='function'){setupQREncoding();return true;}
+  const cdns=[
+    'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js',
+    'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js',
+    'https://unpkg.com/qrcode-generator@1.4.4/qrcode.js'
+  ];
+  for(const u of cdns){try{await loadScript(u);if(window.qrcode&&typeof window.qrcode==='function'){setupQREncoding();return true;}}catch(e){}}
   return false;
 }
+function setupQREncoding(){try{if(window.qrcode.stringToBytesFuncs&&window.qrcode.stringToBytesFuncs['UTF-8'])window.qrcode.stringToBytes=window.qrcode.stringToBytesFuncs['UTF-8'];}catch(e){}}
 async function ensureZip(){
   if(window.JSZip)return true;
-  for(const u of ['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js']){
-    try{await loadScript(u); if(window.JSZip)return true;}catch(e){}
-  }
+  for(const u of ['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://unpkg.com/jszip@3.10.1/dist/jszip.min.js','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js']){
+    try{await loadScript(u);if(window.JSZip)return true;}catch(e){}}
   return false;
 }
 function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}
@@ -129,16 +150,10 @@ function tryImg(src){return new Promise((res,rej)=>{const im=new Image();im.onlo
 
 /* ================= NORMALISASI DATA ================= */
 function pickField(obj,keys){
-  const lower={}; Object.keys(obj||{}).forEach(k=>lower[k.toLowerCase()]=obj[k]);
-  for(const k of keys){
-    let v=lower[k];
-    if(v===undefined||v===null)continue;
-    if(typeof v==='object'){ // nested, coba ambil dari subfield umum
-      v=v.nama||v.name||v.label||v.value||'';
-    }
-    v=String(v).trim();
-    if(v!=='')return v;
-  }
+  const lower={};Object.keys(obj||{}).forEach(k=>lower[k.toLowerCase()]=obj[k]);
+  for(const k of keys){let v=lower[k];if(v===undefined||v===null)continue;
+    if(typeof v==='object')v=v.nama||v.name||v.label||v.value||'';
+    v=String(v).trim();if(v!=='')return v;}
   return '';
 }
 function normalize(json){
@@ -147,13 +162,7 @@ function normalize(json){
   else if(json&&typeof json==='object'){
     for(const k of ['siswa','data','students','peserta','records','list','items','result'])
       if(Array.isArray(json[k])){arr=json[k];break;}
-    if(!arr){ // mungkin dikelompokkan per kelas: {"7A":[...], "7B":[...]}
-      const temp=[];
-      for(const [k,v] of Object.entries(json)){
-        if(Array.isArray(v)) v.forEach(it=>{ if(it&&typeof it==='object') temp.push({...it,_k:k}); });
-      }
-      if(temp.length)arr=temp;
-    }
+    if(!arr){const temp=[];for(const [k,v] of Object.entries(json))if(Array.isArray(v))v.forEach(it=>{if(it&&typeof it==='object')temp.push({...it,_k:k});});if(temp.length)arr=temp;}
   }
   if(!arr)return [];
   return arr.map(r=>({
@@ -162,17 +171,13 @@ function normalize(json){
     kelas: pickField(r,['kelas','class','rombel','kelas_nama','tingkat']) || r._k || ''
   })).filter(s=>s.nama||s.nisn);
 }
-
 async function loadData(){
   const custom=new URLSearchParams(location.search).get('data');
   const urls=custom?[custom,...REPO_DATA]:REPO_DATA;
   for(const u of urls){
-    try{
-      const r=await fetch(u,{cache:'no-store'}); if(!r.ok)continue;
-      const json=await r.json();
-      console.log('Raw JSON dari',u,json);
-      students=normalize(json);
-      console.log('Hasil parse:',students);
+    try{const r=await fetch(u,{cache:'no-store'});if(!r.ok)continue;
+      const json=await r.json();console.log('Raw JSON dari',u,json);
+      students=normalize(json);console.log('Hasil parse:',students);
       $('dbg').textContent=JSON.stringify({sumber:u,total:students.length,contoh:students[0]||null},null,2);
       if(students.length)return true;
     }catch(e){console.warn('Gagal memuat',u,e);}
@@ -180,6 +185,26 @@ async function loadData(){
   return false;
 }
 async function loadLogo(){for(const u of LOGO_URLS){try{logoImg=await tryImg(u);return;}catch(e){}}}
+
+/* ================= QR (qrcode-generator) ================= */
+function makeQR(text){
+  for(let tn=1;tn<=40;tn++){try{const q=qrcode(tn,'M');q.addData(text);q.make();return q;}catch(e){continue;}}
+  return null;
+}
+function drawQR(ctx,text,cx,topY,box){
+  const q=makeQR(text);
+  if(!q){ctx.fillStyle='#c0392b';ctx.font='24px Arial';ctx.textAlign='center';ctx.fillText('QR gagal dibuat',cx,topY+box/2);return;}
+  const count=q.getModuleCount(),quiet=4,total=count+quiet*2,cell=box/total;
+  const ox=cx-box/2,oy=topY;
+  ctx.fillStyle='#ffffff';ctx.fillRect(ox,oy,box,box);
+  ctx.fillStyle='#101820';
+  for(let r=0;r<count;r++)for(let c=0;c<count;c++)if(q.isDark(r,c)){
+    const cc=c+quiet,rr=r+quiet;
+    const x0=ox+Math.round(cc*cell),x1=ox+Math.round((cc+1)*cell);
+    const y0=oy+Math.round(rr*cell),y1=oy+Math.round((rr+1)*cell);
+    ctx.fillRect(x0,y0,x1-x0,y1-y0);
+  }
+}
 
 /* ================= GAMBAR KARTU ================= */
 function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
@@ -201,13 +226,8 @@ async function renderCard(s){
 
   const qrText=stripLeadingZero(s.nisn)||s.nama||'-';
   const QR=396,qy=y+18;
-  if(await ensureQR()){
-    const qc=document.createElement('canvas');
-    await QRCode.toCanvas(qc,qrText,{width:QR,margin:1,errorCorrectionLevel:'M',color:{dark:'#101820',light:'#ffffff'}});
-    ctx.drawImage(qc,(CARD_W-QR)/2,qy,QR,QR);
-  }else{
-    ctx.fillStyle='#c0392b';ctx.font='24px Arial';ctx.fillText('QR gagal dimuat',CARD_W/2,qy+QR/2);
-  }
+  if(await ensureQR()){drawQR(ctx,qrText,CARD_W/2,qy,QR);}
+  else{ctx.fillStyle='#c0392b';ctx.font='24px Arial';ctx.textAlign='center';ctx.fillText('Pustaka QR gagal dimuat',CARD_W/2,qy+QR/2);}
 
   ctx.fillStyle='#101820';ctx.font='bold 32px Arial';
   let lines=wrapText(ctx,(s.nama||'—').toUpperCase(),CARD_W-110);
@@ -219,7 +239,6 @@ async function renderCard(s){
   drawLabelValue(ctx,'Kelas : ',s.kelas||'-',CARD_W/2,ty+56);
   return c;
 }
-
 function showPlaceholder(msg){
   const pc=$('cardCanvas');pc.width=CARD_W;pc.height=CARD_H;
   const ctx=pc.getContext('2d');
@@ -230,7 +249,7 @@ function showPlaceholder(msg){
   for(const ln of lines){ctx.fillText(ln,CARD_W/2,y);y+=34;}
 }
 
-/* ================= UI: KELAS -> NAMA ================= */
+/* ================= UI: KELAS -> CENTANG NAMA ================= */
 function buildClasses(){
   const set=new Set();students.forEach(s=>set.add(s.kelas||''));
   classes=[...set].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
@@ -249,53 +268,95 @@ function renderList(){
     if(!((s.nama+' '+s.nisn).toLowerCase().includes(q)))return;
     shown++;
     const d=document.createElement('div');
-    d.className='item'+(i===selectedIdx?' active':'');d.dataset.i=i;
-    d.innerHTML=`<div class="nm">${s.nama||'—'}</div><div class="sub">NISN ${s.nisn||'-'}</div>`;
+    d.className='item'+(selectedSet.has(i)?' selected':'')+(i===previewIdx?' previewing':'');
+    d.dataset.i=i;
+    d.innerHTML=`<input type="checkbox" data-i="${i}" ${selectedSet.has(i)?'checked':''}/>
+      <span class="txt"><span class="nm">${s.nama||'—'}</span><span class="sub">NISN ${s.nisn||'-'}</span></span>`;
     el.appendChild(d);
   });
-  $('count').textContent=`${shown} siswa di kelas ${selectedKelas||'(Tanpa Kelas)'}`;
+  updateCountShown(shown);
 }
-$('list').addEventListener('click',e=>{const it=e.target.closest('[data-i]');if(it)select(+it.dataset.i);});
-$('search').addEventListener('input',renderList);
-$('kelasSel').addEventListener('change',e=>{selectedKelas=e.target.value;selectedIdx=-1;renderList();setBtns(false);$('cardMeta').textContent='Pilih nama untuk melihat kartu';showPlaceholder('Pilih nama di sebelah kiri');});
+function updateCountShown(shown){
+  $('count').textContent=`${shown} siswa di kelas ${selectedKelas||'(Tanpa Kelas)'} • terpilih: ${selectedSet.size}`;
+}
+function renderSelection(){
+  const wrap=$('selChips');wrap.innerHTML='';
+  if(!selectedSet.size){wrap.innerHTML='<span class="empty">Belum ada dipilih.</span>';return;}
+  [...selectedSet].sort((a,b)=>a-b).forEach(i=>{
+    const s=students[i];const chip=document.createElement('span');chip.className='chip';
+    chip.innerHTML=`${s.nama||s.nisn||('siswa#'+i)} <b data-rm="${i}">×</b>`;
+    wrap.appendChild(chip);
+  });
+}
+function toggleBtns(){
+  $('btnPng').disabled=previewIdx<0;
+  $('btnPrintOne').disabled=previewIdx<0;
+  const n=selectedSet.size;
+  $('btnZip').disabled=n===0;
+  $('btnPrintSel').disabled=n===0;
+}
+function refreshSel(){renderList();renderSelection();toggleBtns();}
 
-async function select(i){
-  selectedIdx=i;renderList();setBtns(true);
-  const s=students[i];
-  $('cardMeta').textContent=`QR berisi: ${stripLeadingZero(s.nisn)||s.nama||'—'}`;
+$('list').addEventListener('click',e=>{
+  const item=e.target.closest('.item');if(!item)return;
+  const i=+item.dataset.i;
+  const cb=item.querySelector('input[type=checkbox]');
+  if(e.target!==cb){cb.checked=!cb.checked;}
+  if(cb.checked)selectedSet.add(i);else selectedSet.delete(i);
+  item.classList.toggle('selected',cb.checked);
+  $('list').querySelectorAll('.item.previewing').forEach(x=>x.classList.remove('previewing'));
+  item.classList.add('previewing');
+  previewIdx=i;
+  showPreview(students[i]);
+  renderSelection();updateCountShown($('list').childElementCount);toggleBtns();
+});
+$('search').addEventListener('input',renderList);
+$('kelasSel').addEventListener('change',e=>{selectedKelas=e.target.value;renderList();});
+$('btnSelAll').onclick=()=>{students.forEach((s,i)=>{if((s.kelas||'')===(selectedKelas||''))selectedSet.add(i);});refreshSel();};
+$('btnClear').onclick=()=>{selectedSet.clear();refreshSel();};
+$('selChips').addEventListener('click',e=>{const rm=e.target.closest('[data-rm]');if(!rm)return;selectedSet.delete(+rm.dataset.rm);refreshSel();});
+
+async function showPreview(s){
   try{
     setStatus('Membuat pratinjau…');
     const c=await renderCard(s);
     const pc=$('cardCanvas');pc.width=CARD_W;pc.height=CARD_H;
     pc.getContext('2d').drawImage(c,0,0);
-    setStatus('✔ Pratinjau siap.');
-  }catch(err){
-    console.error(err);setStatus('⚠ Gagal render: '+err.message);
-    showPlaceholder('Gagal render: '+err.message);
-  }
+    $('cardMeta').textContent=`QR berisi: ${stripLeadingZero(s.nisn)||s.nama||'—'}`;
+    setStatus('✔ Pratinjau siap.');toggleBtns();
+  }catch(err){console.error(err);setStatus('⚠ Gagal render: '+err.message);showPlaceholder('Gagal render: '+err.message);}
 }
-function setBtns(on){['btnPng','btnPrintOne','btnZip','btnPrintAll'].forEach(id=>$(id).disabled=!on);}
 
 /* ================= AKSI ================= */
 function fname(s,i){return(((s.nisn||String(i+1))+'_'+(s.nama||'siswa')).replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'_'))+'.png';}
-$('btnPng').onclick=async()=>{if(selectedIdx<0)return;saveBlob(await canvasToBlob(await renderCard(students[selectedIdx])),fname(students[selectedIdx],selectedIdx));};
+function selectedStudents(){return [...selectedSet].sort((a,b)=>a-b).map(i=>({i,s:students[i]}));}
+
+$('btnPng').onclick=async()=>{if(previewIdx<0)return;saveBlob(await canvasToBlob(await renderCard(students[previewIdx])),fname(students[previewIdx],previewIdx));};
+$('btnPrintOne').onclick=async()=>{if(busy||previewIdx<0)return;busy=true;await fillPrint([students[previewIdx]]);window.print();busy=false;setStatus('Siap.');};
+
 $('btnZip').onclick=async()=>{
-  if(busy||!students.length)return;busy=true;setBtns(false);
-  if(!(await ensureZip())){setStatus('⚠ Gagal memuat JSZip.');busy=true;setBtns(true);return;}
+  const sel=selectedStudents();if(busy||!sel.length)return;busy=true;
+  if(!(await ensureZip())){setStatus('⚠ Gagal memuat JSZip.');busy=false;return;}
   try{
     const zip=new JSZip();
-    for(let i=0;i<students.length;i++){setStatus(`Membuat kartu ${i+1}/${students.length}…`);zip.file(fname(students[i],i),await canvasToBlob(await renderCard(students[i])));if(i%3===0)await new Promise(r=>setTimeout(r));}
+    for(let k=0;k<sel.length;k++){const {i,s}=sel[k];setStatus(`Membuat kartu ${k+1}/${sel.length}…`);
+      zip.file(fname(s,i),await canvasToBlob(await renderCard(s)));if(k%3===0)await new Promise(r=>setTimeout(r));}
     setStatus('Mengompres ZIP…');
-    saveBlob(await zip.generateAsync({type:'blob'}),'kartu-qr-siswa.zip');
+    saveBlob(await zip.generateAsync({type:'blob'}),'kartu-qr-terpilih.zip');
     setStatus('✔ Selesai.');
-  }finally{busy=false;setBtns(true);}
+  }finally{busy=false;}
 };
 async function fillPrint(list){
   const area=$('print-area');area.innerHTML='';
-  for(let i=0;i<list.length;i++){setStatus(`Menyiapkan kartu ${i+1}/${list.length}…`);const img=document.createElement('img');img.className='print-card';img.src=(await renderCard(list[i])).toDataURL('image/png');area.appendChild(img);if(i%5===0)await new Promise(r=>setTimeout(r));}
+  for(let i=0;i<list.length;i++){setStatus(`Menyiapkan kartu ${i+1}/${list.length}…`);
+    const img=document.createElement('img');img.className='print-card';
+    img.src=(await renderCard(list[i])).toDataURL('image/png');area.appendChild(img);
+    if(i%5===0)await new Promise(r=>setTimeout(r));}
 }
-$('btnPrintOne').onclick=async()=>{if(busy||selectedIdx<0)return;busy=true;setBtns(false);await fillPrint([students[selectedIdx]]);window.print();busy=false;setBtns(true);setStatus('Siap.');};
-$('btnPrintAll').onclick=async()=>{if(busy||!students.length)return;busy=true;setBtns(false);await fillPrint(students);window.print();busy=false;setBtns(true);setStatus('Siap.');};
+$('btnPrintSel').onclick=async()=>{
+  const sel=selectedStudents();if(busy||!sel.length)return;busy=true;
+  await fillPrint(sel.map(x=>x.s));window.print();busy=false;setStatus('Siap.');
+};
 
 $('fileJson').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
@@ -307,18 +368,17 @@ $('fileJson').onchange=async e=>{
 function afterLoad(fromFile){
   buildClasses();fillKelas();
   if(classes.length){selectedKelas=classes[0];$('kelasSel').value=selectedKelas;}
-  renderList();
-  const first=students.findIndex(s=>(s.kelas||'')===selectedKelas);
-  if(first>=0){select(first);}else{showPlaceholder('Pilih kelas lalu nama di sebelah kiri');}
-  if(!fromFile)setStatus(`✔ ${students.length} data siswa dimuat.`);
-  else setStatus(`✔ ${students.length} data dari file lokal.`);
+  selectedSet.clear();previewIdx=-1;
+  renderList();renderSelection();toggleBtns();
+  showPlaceholder('Centang nama di sebelah kiri untuk melihat kartu');
+  setStatus(`✔ ${students.length} data siswa dimuat.`);
 }
 (async function init(){
   setStatus('Memuat data siswa dari GitHub…');
   showPlaceholder('Memuat data…');
   await loadLogo();
   if(await loadData())afterLoad(false);
-  else{setStatus('⚠ Data tidak terbaca. Coba file JSON lokal, atau buka “Cek data” untuk melihat bentuk datanya.');showPlaceholder('Data tidak terbaca. Lihat panel “Cek data”.');}
+  else{setStatus('⚠ Data tidak terbaca. Coba file JSON lokal, atau buka “Cek data”.');showPlaceholder('Data tidak terbaca. Lihat panel “Cek data”.');}
 })();
 </script>
 </body>
